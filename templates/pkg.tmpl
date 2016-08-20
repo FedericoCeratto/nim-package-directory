@@ -1,0 +1,115 @@
+#? stdtmpl | standard
+#proc generate_pkg_page(pkg: Pkg): string =
+#  result = ""
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+
+    <title>Nim packages</title>
+    <link rel="shortcut icon" href="data:image/x-icon;base64,AAABAAEAEBAAAAEAIABoBAAAFgAAACgAAAAQAAAAIAAAAAEAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AAAAAAUAAAAF////AP///wD///8A////AP///wD///8A////AP///wD///8A////AAAAAAIAAABbAAAAlQAAAKIAAACbAAAAmwAAAKIAAACVAAAAWwAAAAL///8A////AP///wD///8A////AAAAABQAAADAAAAAYwAAAA3///8A////AP///wD///8AAAAADQAAAGMAAADAAAAAFP///wD///8A////AP///wAAAACdAAAAOv///wD///8A////AP///wD///8A////AP///wD///8AAAAAOgAAAJ3///8A////AP///wAAAAAnAAAAcP///wAAAAAoAAAASv///wD///8A////AP///wAAAABKAAAAKP///wAAAABwAAAAJ////wD///8AAAAAgQAAABwAAACIAAAAkAAAAJMAAACtAAAAFQAAABUAAACtAAAAkwAAAJAAAACIAAAAHAAAAIH///8A////AAAAAKQAAACrAAAAaP///wD///8AAAAARQAAANIAAADSAAAARf///wD///8AAAAAaAAAAKsAAACk////AAAAADMAAACcAAAAnQAAABj///8A////AP///wAAAAAYAAAAGP///wD///8A////AAAAABgAAACdAAAAnAAAADMAAAB1AAAAwwAAAP8AAADpAAAAsQAAAE4AAAAb////AP///wAAAAAbAAAATgAAALEAAADpAAAA/wAAAMMAAAB1AAAAtwAAAOkAAAD/AAAA/wAAAP8AAADvAAAA3gAAAN4AAADeAAAA3gAAAO8AAAD/AAAA/wAAAP8AAADpAAAAtwAAAGUAAAA/AAAA3wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAADfAAAAPwAAAGX///8A////AAAAAEgAAADtAAAAvwAAAL0AAADGAAAA7wAAAO8AAADGAAAAvQAAAL8AAADtAAAASP///wD///8A////AP///wD///8AAAAAO////wD///8A////AAAAAIcAAACH////AP///wD///8AAAAAO////wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A//8AAP//AAD4HwAA7/cAAN/7AAD//wAAoYUAAJ55AACf+QAAh+EAAAAAAADAAwAA4AcAAP5/AAD//wAA//8AAA=="/>
+    <meta charset="utf-8">
+    <meta name="description" content="">
+    <meta name="author" content="">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="//fonts.googleapis.com/css?family=Raleway:400,300,600" rel="stylesheet" type="text/css">
+    <link rel="stylesheet" href="/skeleton/css/normalize.css">
+    <link rel="stylesheet" href="/skeleton/css/skeleton.css">
+    <style>
+      article#readme {
+        border: 1px solid #E1E1E1;
+        border-radius: 4px;
+        padding: 1em;
+      }
+    </style>
+
+  </head>
+  <body>
+
+
+    <div class="container">
+      <div class="row" style="">
+        <div class="one column">
+          <a class="navbar-brand" href="http://nim-lang.org/">
+            <img id="nimlogo"
+                 src="/img/logo-simple.png"
+                 alt="Nim Logo"
+                 title="Go to Nim.org Website" />
+          </a>
+        </div>
+        <div class="three columns">
+          <a href="/documentation/">Getting Started</a>
+        </div>
+        <div class="three columns">
+          <a href="/documentation/creating-a-haxelib-package/">Creating a Nim pkg</a>
+        </div>
+        <div class="five columns">
+          <form action="/search" method="GET" role="search">
+            <input type="text" name="query" class="" placeholder="Search tags/keywords"  />
+            <button type="submit" class="submit input"">Search</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="row">
+
+        <h2>${pkg["name"].str}</h2>
+        <p >${pkg["description"].str}</p>
+        <small>Released on ${pkg["github_latest_version_time"].str}</small>
+        </p>
+
+        <table class="u-full-width">
+          <tbody>
+            <tr>
+              <th>Maintainer</th>
+              <td>
+                <a href="https://github.com/${pkg["github_owner"].str}"> ${pkg["github_owner"].str}</a>
+              </td>
+            </tr>
+            <tr>
+              <th>Website</th>
+              <td><a href="${pkg["web"].str}">${pkg["web"].str}</a></td>
+            </tr>
+            <tr class="version">
+              <th>Latest version</th>
+              <td>${pkg["github_latest_version"].str}</td>
+            </tr>
+            <tr class="license">
+              <th>License</th>
+              <td>${pkg["license"].str}</td>
+            </tr>
+            <tr class="tags">
+              <th>Tags</th>
+              <td>
+                # for tag in pkg["tags"]:
+                <a href="/search?query=$tag.str">$tag.str</a>
+                # end for
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="btn-toolbar">
+          <a class="button" href="${pkg["github_latest_version_url"].str}">Download</a>
+          <a class="button" href="${pkg["web"].str}">Project Website</a>
+        </div>
+
+        <div>
+          <br/>
+          <p>To install, run:</p>
+          <pre><code>nimble install ${pkg["name"].str}</code></pre>
+          <p>See <a href="https://github.com/nim-lang/nimble#nimble-usage">using Nimble</a> for more information.</p>
+        </div>
+        <div id="readme">
+          <div class="heading">
+            <h3>GitHub readme</h3>
+          </div>
+          <article id="readme">
+            ${pkg["github_readme"].str}
+          </article>
+        </div>
+
+      </div>
+    </div>
+
+  </body>
+</html>
