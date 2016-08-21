@@ -5,18 +5,19 @@
 # Released under GPLv3 License, see LICENSE file
 #
 
-import asyncdispatch
 from algorithm import sortedByIt
-import json
-import os
-import jester
-import tables
-import logging
-import strutils
-import sequtils
 from times import epochTime
+import asyncdispatch
 import httpclient
 import httpcore
+import json
+import logging
+import os
+import sequtils
+import strutils
+import tables
+
+import jester
 
 import signatures
 
@@ -47,6 +48,7 @@ var pkgs = newTable[string, Pkg]()
 var packages_by_tag = newTable[string, seq[string]]()
 var packages_by_description_word = newTable[string, seq[string]]()
 
+include "templates/base.tmpl"
 include "templates/pkg.tmpl"
 include "templates/pkg_list.tmpl"
 
@@ -124,13 +126,13 @@ routes:
     for pn in found_pkg_names.keys():
       pkgs_list.add pkgs[pn]
 
-    resp generate_pkg_list_page(pkgs_list)
+    resp base_page(generate_pkg_list_page(pkgs_list))
 
 
   get "/pkg/@pkg_name/?":
     let pname = @"pkg_name"
     if not pkgs.has_key(pname):
-      resp "Package not found"
+      resp base_page "Package not found"
 
     let
       pkg = pkgs[pname]
@@ -166,7 +168,7 @@ routes:
           pkg["github_latest_version_url"] = newJString ""
           pkg["github_latest_version_time"] = newJString ""
 
-    resp generate_pkg_page(pkg)
+    resp base_page(generate_pkg_page(pkg))
 
   post "/update_package":
     ## Create or update a package description
