@@ -215,9 +215,9 @@ routes:
 
     if not pkg_already_exists:
       # scan for naming collisions
-      let lower_name = name.to_lower()
+      let norm_name = name.normalize()
       for existing_pn in pkgs.keys():
-        if lower_name == existing_pn.to_lower():
+        if norm_name == existing_pn.normalize():
           info "Another package named $# already exists" % existing_pn
           resp Http400, "Another package named $# already exists" % existing_pn
 
