@@ -17,7 +17,7 @@ import sequtils
 import strutils
 import tables
 
-import jester
+import jester, seccomp
 
 import signatures
 
@@ -51,6 +51,14 @@ var packages_by_description_word = newTable[string, seq[string]]()
 include "templates/base.tmpl"
 include "templates/pkg.tmpl"
 include "templates/pkg_list.tmpl"
+
+proc setup_seccomp() =
+  ## Setup seccomp sandbox
+  const syscalls = """accept,access,arch_prctl,bind,brk,close,connect,epoll_create,epoll_ctl,epoll_wait,execve,fcntl,fstat,futex,getcwd,getrlimit,getuid,ioctl,listen,lseek,mmap,mprotect,munmap,open,poll,read,readlink,recvfrom,rt_sigaction,rt_sigprocmask,sendto,set_robust_list,setsockopt,set_tid_address,socket,stat,uname,write"""
+  let ctx = seccomp_ctx()
+  for sc in syscalls.split(','):
+    ctx.add_rule(Allow, sc)
+  ctx.load()
 
 proc load_packages*() =
   ## Load packages.json
@@ -262,6 +270,7 @@ proc cleanupWhitespace(s: string): string =
 
 
 proc main() =
+  #setup_seccomp()
   load_packages()
   runForever()
 
