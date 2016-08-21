@@ -76,7 +76,8 @@ proc load_packages*() =
         packages_by_tag[tag.str].add pdata["name"].str
 
       # collect packages matching a word in their descriptions
-      for orig_word in pdata["description"].str.split({' ', ','}):
+      let orig_words = pdata["description"].str.split({' ', ','}) & pdata["name"].str
+      for orig_word in orig_words:
         if orig_word.len < 3:
           continue  # ignore short words
         let word = orig_word.toLower
