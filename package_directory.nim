@@ -125,7 +125,7 @@ proc search_packages*(query: string): CountTable[string] =
 routes:
 
   get "/":
-    discard
+    resp base_page("<h5>Welcome to the Nim package directory.</h5><p>Work in progress.</p>")
 
   get "/search":
     let found_pkg_names = search_packages(@"query")
