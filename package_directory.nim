@@ -13,6 +13,7 @@ import httpcore
 import json
 import logging
 import os
+import parseopt
 import sequtils
 import strutils
 import tables
@@ -27,6 +28,7 @@ const
   timeout = 60
   github_readme_tpl = "https://api.github.com/repos/$#/readme"
   github_latest_version_tpl = "https://api.github.com/repos/$#/releases/latest"
+  github_doc_index_tpl = "https://$#.github.io/$#/index.html"
   github_readme_header = "Accept:application/vnd.github.v3.html\c\L"
   github_caching_time = 600
 
@@ -35,6 +37,17 @@ const
 let conf = parseFile("conf.json")
 let github_token = "Authorization: token $#\c\L" % conf["github_token"].str
 let packages_list_fname = conf["packages_list_fname"].str
+var port = if conf.has_key("port"): conf["port"].getNum.Port else: 5000.Port
+
+# parse CLI opts
+
+for kind, key, val in getopt():
+  case kind
+  of cmdShortOption:
+    case key
+    of "p": port = val.parseInt.Port
+  else: discard
+
 
 newConsoleLogger().addHandler
 newRollingFileLogger(conf["log_fname"].str, fmtStr = verboseFmtStr).addHandler
@@ -49,6 +62,7 @@ var packages_by_tag = newTable[string, seq[string]]()
 var packages_by_description_word = newTable[string, seq[string]]()
 
 include "templates/base.tmpl"
+include "templates/index.tmpl"
 include "templates/pkg.tmpl"
 include "templates/pkg_list.tmpl"
 
@@ -120,13 +134,52 @@ proc search_packages*(query: string): CountTable[string] =
   found_pkg_names.sort()
   return found_pkg_names
 
+proc fetch_github_readme(pkg: Pkg, owner_repo_name: string) =
+  ## Fetch README.* from GitHub
+  echo "fetching ", github_readme_tpl % owner_repo_name
+  try:
+    let readme = getContent(github_readme_tpl % owner_repo_name,
+    extraHeaders=github_readme_header & github_token)
+    pkg["github_readme"] = newJString readme
+  except:
+    echo getCurrentExceptionMsg()
+    pkg["github_readme"] = newJString ""
+
+proc fetch_github_version_data(pkg: Pkg, owner_repo_name: string) =
+  ## Fetch version data from GitHub
+  echo "fetching ", github_latest_version_tpl % owner_repo_name
+  try:
+    let latest_version = getContent(github_latest_version_tpl % owner_repo_name,
+      extraHeaders=github_token).parseJson
+    pkg["github_latest_version"] = newJString latest_version["name"].str
+    pkg["github_latest_version_url"] = newJString latest_version["tarball_url"].str
+    pkg["github_latest_version_time"] = newJString latest_version["published_at"].str
+  except:
+    pkg["github_latest_version"] = newJString "none"
+    pkg["github_latest_version_url"] = newJString ""
+    pkg["github_latest_version_time"] = newJString ""
+
+# https://federicoceratto.github.io/nim-libsodium/docs/0.1.0/sodium.html
+
+proc fetch_github_doc_pages(pkg: Pkg, owner, repo_name: string) =
+  ## Fetch documentation pages from GitHub
+  let url = github_doc_index_tpl % [owner.toLower, repo_name]
+  echo "Checking ", url
+  if get(url).status.startsWith("200"):
+    pkg["doc"] = newJString url
+
+
+# Jester settings
+
+settings:
+    port = port
 
 # routes
 
 routes:
 
   get "/":
-    resp base_page("<h5>Welcome to the Nim package directory.</h5><p>Work in progress.</p>")
+    resp base_page(generate_index_page())
 
   get "/search":
     let found_pkg_names = search_packages(@"query")
@@ -153,29 +206,12 @@ routes:
         # pkg is on GitHub and needs updating
         pkg["github_last_update_time"] = newJInt epochTime().int
         let owner = url.split('/')[3]
+        let repo_name = url.split('/')[4]
         let owner_repo_name = "$#/$#" % url.split('/')[3..4]
         pkg["github_owner"] = newJString owner
-
-        echo "fetching ", github_readme_tpl % owner_repo_name
-        try:
-          let readme = getContent(github_readme_tpl % owner_repo_name,
-            extraHeaders=github_readme_header & github_token)
-          pkg["github_readme"] = newJString readme
-        except:
-          echo getCurrentExceptionMsg()
-          pkg["github_readme"] = newJString ""
-
-        echo "fetching ", github_latest_version_tpl % owner_repo_name
-        try:
-          let latest_version = getContent(github_latest_version_tpl % owner_repo_name,
-            extraHeaders=github_token).parseJson
-          pkg["github_latest_version"] = newJString latest_version["name"].str
-          pkg["github_latest_version_url"] = newJString latest_version["tarball_url"].str
-          pkg["github_latest_version_time"] = newJString latest_version["published_at"].str
-        except:
-          pkg["github_latest_version"] = newJString "none"
-          pkg["github_latest_version_url"] = newJString ""
-          pkg["github_latest_version_time"] = newJString ""
+        pkg.fetch_github_readme(owner_repo_name)
+        pkg.fetch_github_version_data(owner_repo_name)
+        pkg.fetch_github_doc_pages(owner, repo_name)
 
     resp base_page(generate_pkg_page(pkg))
 

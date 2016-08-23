@@ -43,6 +43,9 @@
         <div class="btn-toolbar">
           <a class="button" href="${pkg["github_latest_version_url"].str}">Download</a>
           <a class="button" href="${pkg["web"].str}">Project Website</a>
+#if pkg.has_key("doc"):
+          <a class="button button-primary" href="${pkg["doc"].str}">Documentation</a>
+#end
         </div>
 
         <div>
