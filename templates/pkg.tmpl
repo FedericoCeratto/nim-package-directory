@@ -6,17 +6,23 @@
 
   <h2>${pkg["name"].str}</h2>
   <p >${pkg["description"].str}</p>
+  #if pkg.has_key("github_latest_version_time"):
   <small>Released on ${pkg["github_latest_version_time"].str}</small>
+  #end if
   </p>
 
   <table class="u-full-width">
     <tbody>
+      #if pkg.has_key("github_owner"):
       <tr>
         <th>Maintainer</th>
         <td>
           <a href="https://github.com/${pkg["github_owner"].str}"> ${pkg["github_owner"].str}</a>
         </td>
       </tr>
+      #end if
+      #if pkg.has_key("web"):
+      <tr>
       <tr>
         <th>Website</th>
         <td><a href="${pkg["web"].str}">${pkg["web"].str}</a></td>
@@ -25,6 +31,7 @@
         <th>Latest version</th>
         <td>${pkg["github_latest_version"].str}</td>
       </tr>
+      #end if
       <tr class="license">
         <th>License</th>
         <td>${pkg["license"].str}</td>
@@ -52,8 +59,12 @@
   </table>
 
   <div class="btn-toolbar">
+    #if pkg.has_key("github_latest_version_url"):
     <a class="button" href="${pkg["github_latest_version_url"].str}">Download</a>
+    #end
+    #if pkg.has_key("web"):
     <a class="button" href="${pkg["web"].str}">Project Website</a>
+    #end
     #if pkg.has_key("doc"):
     <a class="button button-primary" href="${pkg["doc"].str}">Documentation</a>
     #end
@@ -65,6 +76,7 @@
     <pre><code>nimble install ${pkg["name"].str}</code></pre>
     <p>See <a href="https://github.com/nim-lang/nimble#nimble-usage">using Nimble</a> for more information.</p>
   </div>
+  #if pkg.has_key("github_readme"):
   <div id="readme">
     <div class="heading">
       <h3>GitHub readme</h3>
@@ -73,5 +85,6 @@
       ${pkg["github_readme"].str}
     </article>
   </div>
+  #end
 
 </div>
