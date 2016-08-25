@@ -60,6 +60,7 @@ var pkgs = newTable[string, Pkg]()
 # tag -> package names
 var packages_by_tag = newTable[string, seq[string]]()
 var packages_by_description_word = newTable[string, seq[string]]()
+var packages_by_normalized_name = newTable[string, string]()
 
 include "templates/base.tmpl"
 include "templates/index.tmpl"
@@ -84,13 +85,15 @@ proc load_packages*() =
     if pdata.hasKey("name"):
       pkgs.add (pdata["name"].str, pdata)
 
+      packages_by_normalized_name[pdata["name"].str] = pdata["name"].str
+
       for tag in pdata["tags"]:
         if not packages_by_tag.hasKey(tag.str):
           packages_by_tag[tag.str] = @[]
         packages_by_tag[tag.str].add pdata["name"].str
 
       # collect packages matching a word in their descriptions
-      let orig_words = pdata["description"].str.split({' ', ','}) & pdata["name"].str
+      let orig_words = pdata["description"].str.split({' ', ','})
       for orig_word in orig_words:
         if orig_word.len < 3:
           continue  # ignore short words
@@ -120,9 +123,14 @@ proc search_packages*(query: string): CountTable[string] =
   #TODO lowercase match
   var found_pkg_names = initCountTable[string]()
   for item in query:
+    if packages_by_normalized_name.has_key(item.normalize()):
+        # matching by name is weighted more than everything else
+        let pn = packages_by_normalized_name[item.normalize()]
+        found_pkg_names.inc(pn, val=5)
+
     if packages_by_tag.has_key(item):
       for pn in packages_by_tag[item]:
-        # matching by tags is weighted more
+        # matching by tags is weighted more than by word
         found_pkg_names.inc(pn, val=3)
 
     if packages_by_description_word.has_key(item.toLower):
