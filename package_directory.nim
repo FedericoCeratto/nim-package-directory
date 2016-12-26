@@ -8,18 +8,19 @@
 from algorithm import sortedByIt
 from algorithm import sort, sorted
 from times import epochTime
-import asyncdispatch
-import httpclient
-import httpcore
-import json
-import logging
-import os
-import osproc
-import parseopt
-import sequtils
-import strutils
-import streams
-import tables
+import asyncdispatch,
+ httpclient,
+ httpcore,
+ json,
+ logging,
+ os,
+ osproc,
+ parseopt,
+ sequtils,
+ streams,
+ strutils,
+ tables,
+ times
 
 import jester
 
@@ -34,6 +35,10 @@ const
   github_doc_index_tpl = "https://$#.github.io/$#/index.html"
   github_readme_header = "Accept:application/vnd.github.v3.html\c\L"
   github_caching_time = 600
+  git_bin_path = "/usr/bin/git"
+  nim_bin_path = "/usr/bin/nim"
+  tmp_doc_dir = "/tmp/doc"
+  build_expiry_time = 300.Time # 5 mins
 
 # init
 
@@ -66,10 +71,16 @@ proc log_info(args: varargs[string, `$`]) =
 type
   Pkg* = JsonNode
   strSeq = seq[string]
+  PkgName = distinct string
+  PkgDocMetadata = ref object of RootObj
+    fnames: strSeq
+    ready: bool
+    expire_time: Time
+    last_commitish: string
 
 # the pkg name is normalized
 var pkgs = newTable[string, Pkg]()
-var pkgs_doc_files = newTable[string, strSeq]()
+var pkgs_doc_files = newTable[string, PkgDocMetadata]()
 
 # tag -> package names
 var packages_by_tag = newTable[string, seq[string]]()
@@ -82,12 +93,20 @@ include "templates/pkg_list.tmpl"
 include "templates/doc_files_list.tmpl"
 include "templates/loader.tmpl"
 
+# proc setup_seccomp() =
+#   ## Setup seccomp sandbox
+#   const syscalls = """accept,access,arch_prctl,bind,brk,close,connect,epoll_create,epoll_ctl,epoll_wait,execve,fcntl,fstat,futex,getcwd,getrlimit,getuid,ioctl,listen,lseek,mmap,mprotect,munmap,open,poll,read,readlink,recvfrom,rt_sigaction,rt_sigprocmask,sendto,set_robust_list,setsockopt,set_tid_address,socket,stat,uname,write"""
+#   let ctx = seccomp_ctx()
+#   for sc in syscalls.split(','):
+#     ctx.add_rule(Allow, sc)
+#   ctx.load()
+
 proc load_packages*() =
   ## Load packages.json
   ## Rebuild packages_by_tag, packages_by_description_word
   log_debug "loading $#" % packages_list_fname
   pkgs.clear()
-  let pkg_list = packages_list_fname.readFile.parseJson
+  let pkg_list = packages_list_fname.parseFile
   for pdata in pkg_list:
     if not pdata.hasKey("name"):
       continue
@@ -163,6 +182,7 @@ proc fetch_github_readme(pkg: Pkg, owner_repo_name: string) =
     extraHeaders=github_readme_header & github_token)
     pkg["github_readme"] = newJString readme
   except:
+    log_debug "failed to fetch GH readme"
     log_debug getCurrentExceptionMsg()
     pkg["github_readme"] = newJString ""
 
@@ -188,6 +208,73 @@ proc fetch_github_doc_pages(pkg: Pkg, owner, repo_name: string) =
   log_debug "Checking ", url
   if get(url).status.startsWith("200"):
     pkg["doc"] = newJString url
+
+proc `+`(t1, t2: Time): Time {.borrow.}
+
+proc run_process(bin_path, desc: string, work_dir: string,
+    timeout: int, log_output: bool,
+    args: varargs[string, `$`]): string {.discardable.} =
+  ## Run command with timeout
+  # TODO: async
+  var p = startProcess(
+    bin_path, args=args,
+    workingDir=work_dir
+  )
+  if p.waitForExit(timeout=timeout * 1000) == 0:
+    log_debug "$# successful" % desc
+    let stdout_str = p.outputStream().readAll()
+    if log_output:
+      log_debug "Stdout: ---\n$#---" % stdout_str
+      log_debug "Stderr: ---\n$#---" % p.errorStream().readAll()
+    return stdout_str
+
+  error "$# failed" % desc
+  error "Stdout: ---\n$#---" % p.outputStream().readAll()
+  error "Stderr: ---\n$#---" % p.errorStream().readAll()
+  raise newException(Exception, "$# failed" % desc)
+
+
+proc fetch_and_build_pkg_if_needed(pname, url: string) =
+  ## Fetch package and build docs
+  ## Modifies pkgs_doc_files
+  if pkgs_doc_files[pname].expire_time > getTime():
+    return
+
+  pkgs_doc_files[pname].ready = false # lock
+
+  let repo_dir = tmp_doc_dir / pname
+  if not repo_dir.existsDir():
+    log_debug "checking out $#" % url
+    run_process(git_bin_path, "git clone", tmp_doc_dir, 60, false,
+      "clone", url, pname)
+  else:
+    log_debug "git pull-ing $#" % url
+    run_process(git_bin_path, "git pull", repo_dir, 60, false,
+      "pull")
+
+  let commitish = run_process(git_bin_path, "git rev-parse", repo_dir, 1, false,
+    "rev-parse", "--verify", "HEAD")
+
+  if commitish == pkgs_doc_files[pname].last_commitish:
+    pkgs_doc_files[pname].expire_time = getTime() + build_expiry_time
+    pkgs_doc_files[pname].ready = true # unlock
+    log_debug "no changes to repo"
+    return
+
+  var fnames: strSeq = @[]
+  for fname in repo_dir.walkDirRec(filter={pcFile}):
+    if not fname.endswith(".nim"):
+      continue
+    log_debug "running nim doc for $#" % fname
+    run_process(nim_bin_path, "nim doc", repo_dir, 60, true,
+      "doc", fname)
+    fnames.add fname[repo_dir.len..^1][1..^4] & "html"
+
+  pkgs_doc_files[pname].last_commitish = commitish
+  pkgs_doc_files[pname].fnames = fnames
+  pkgs_doc_files[pname].expire_time = getTime() + build_expiry_time
+  pkgs_doc_files[pname].ready = true # unlock
+
 
 
 # Jester settings
@@ -265,7 +352,7 @@ routes:
 
     let name = pkg_data["name"].str
 
-    # TODO: locking?
+    # TODO: locking
     load_packages()
 
     # the package exists with identical name
@@ -302,61 +389,36 @@ routes:
 
   get "/docs/@pkg_name/?@doc_path?":
     ## Serve hosted docs for a package
-    const
-      tmp_doc_dir = "/tmp/doc"
-      git_bin_path = "/usr/bin/git"
-      nim_bin_path = "/usr/bin/nim"
-    let pname = @"pkg_name"
+    let pname = normalize(@"pkg_name")
     let doc_path = @"doc_path"
     if not pkgs.hasKey(pname):
       resp "<html><body>Pkg not found</body></html>"
     let pkg = pkgs[pname]
-    let url = pkg["url"].str
-    let wd = tmp_doc_dir / pname
-    if not wd.existsDir():
-      # Check out pkg
-      var doc_fnames: seq[string] = @[]
-      tmp_doc_dir.createDir()
-      log_debug "checking out $#" % url
-      var p = startProcess(
-        git_bin_path,  args=["clone", url, pname],
-        workingDir=tmp_doc_dir
-      )
-      if p.waitForExit(timeout=60000) == 0:
-        log_debug "OK"
-      else:
-        error "Stdout: $#" % p.outputStream().readAll()
-        error "Stderr: $#" % p.errorStream().readAll()
-
-      for fname in wd.walkDirRec(filter={pcFile}):
-        if not fname.endswith(".nim"):
-          continue
-        log_debug "running nim doc for $#" % fname
-        p = startProcess(
-          nim_bin_path,
-          args=["doc", fname],
-          workingDir=wd
-        )
-        if p.waitForExit(timeout=60000) == 0:
-          log_debug "OK"
-          log_debug "Stdout: $#" % p.outputStream().readAll()
-          log_debug "Stderr: $#" % p.errorStream().readAll()
-        else:
-          error "Stdout: $#" % p.outputStream().readAll()
-          error "Stderr: $#" % p.errorStream().readAll()
-        doc_fnames.add fname[wd.len..^1][1..^4] & "html"
-
-      # doc gen done
-      pkgs_doc_files[pname] = doc_fnames
-
+    # PkgDocMetadata state machine: nothing -> building <-> ready
     if not pkgs_doc_files.hasKey(pname):
-      resp "meow :3"
+      let pm = PkgDocMetadata(
+        expire_time: getTime(),
+        fnames: @[],
+        ready: true,
+        )
+      pkgs_doc_files[pname] = pm
 
+    # Wait on any existing pkg building task
+    while pkgs_doc_files[pname].ready == false:
+      log_debug "waiting build..."
+      sleep 500
+
+    # Check out pkg and build docs. Modifies pkgs_doc_files
+    let url = pkg["url"].str
+    fetch_and_build_pkg_if_needed(pname, url)
+
+    # Show files summary
     if doc_path == "":
       resp base_page(
         generate_doc_files_list_page(pname, pkgs_doc_files[pname])
       )
 
+    # Serve doc file
     let fn = tmp_doc_dir / pname / doc_path
     if existsFile(fn):
       log_debug "serving $#" % fn
@@ -408,6 +470,7 @@ proc cleanupWhitespace(s: string): string =
 proc main() =
   #setup_seccomp()
   log_info "starting"
+  tmp_doc_dir.createDir()
   load_packages()
   runForever()
 

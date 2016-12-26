@@ -1,9 +1,9 @@
 #? stdtmpl | standard
-#proc generate_doc_files_list_page(pkg_name: string, fnames: seq[string]): string =
+#proc generate_doc_files_list_page(pkg_name: string, m: PkgDocMetadata): string =
 #  result = ""
     <h3>Doc files for <a href="/pkg/${pkg_name}">${pkg_name}</a></h3>
     <ul>
-#    for fn in fnames:
+#    for fn in m.fnames:
     <li><a href="/docs/${pkg_name}/${fn}">${fn}</a></li>
 #    end for
     </ul>
