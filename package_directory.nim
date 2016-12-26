@@ -67,13 +67,13 @@ type
   Pkg* = JsonNode
   strSeq = seq[string]
 
+# the pkg name is normalized
 var pkgs = newTable[string, Pkg]()
 var pkgs_doc_files = newTable[string, strSeq]()
 
 # tag -> package names
 var packages_by_tag = newTable[string, seq[string]]()
 var packages_by_description_word = newTable[string, seq[string]]()
-var packages_by_normalized_name = newTable[string, string]()
 
 include "templates/base.tmpl"
 include "templates/home.tmpl"
@@ -82,15 +82,6 @@ include "templates/pkg_list.tmpl"
 include "templates/doc_files_list.tmpl"
 include "templates/loader.tmpl"
 
-# proc setup_seccomp() =
-#   ## Setup seccomp sandbox
-#   const syscalls = """accept,access,arch_prctl,bind,brk,close,connect,epoll_create,epoll_ctl,epoll_wait,execve,fcntl,fstat,futex,getcwd,getrlimit,getuid,ioctl,listen,lseek,mmap,mprotect,munmap,open,poll,read,readlink,recvfrom,rt_sigaction,rt_sigprocmask,sendto,set_robust_list,setsockopt,set_tid_address,socket,stat,uname,write"""
-#   let ctx = seccomp_ctx()
-#   for sc in syscalls.split(','):
-#     ctx.add_rule(Allow, sc)
-#   ctx.load()
-
-
 proc load_packages*() =
   ## Load packages.json
   ## Rebuild packages_by_tag, packages_by_description_word
@@ -98,25 +89,30 @@ proc load_packages*() =
   pkgs.clear()
   let pkg_list = packages_list_fname.readFile.parseJson
   for pdata in pkg_list:
-    if pdata.hasKey("name"):
-      pkgs.add (pdata["name"].str, pdata)
+    if not pdata.hasKey("name"):
+      continue
+    # Normalize pkg name
+    pdata["name"].str = pdata["name"].str.normalize()
+    if pdata["name"].str in pkgs:
+      warn "Duplicate pkg name $#" % pdata["name"].str
+      continue
 
-      packages_by_normalized_name[pdata["name"].str.normalize()] = pdata["name"].str
+    pkgs.add (pdata["name"].str, pdata)
 
-      for tag in pdata["tags"]:
-        if not packages_by_tag.hasKey(tag.str):
-          packages_by_tag[tag.str] = @[]
-        packages_by_tag[tag.str].add pdata["name"].str
+    for tag in pdata["tags"]:
+      if not packages_by_tag.hasKey(tag.str):
+        packages_by_tag[tag.str] = @[]
+      packages_by_tag[tag.str].add pdata["name"].str
 
-      # collect packages matching a word in their descriptions
-      let orig_words = pdata["description"].str.split({' ', ','})
-      for orig_word in orig_words:
-        if orig_word.len < 3:
-          continue  # ignore short words
-        let word = orig_word.toLower
-        if not packages_by_description_word.hasKey(word):
-          packages_by_description_word[word] = @[]
-        packages_by_description_word[word].add pdata["name"].str
+    # collect packages matching a word in their descriptions
+    let orig_words = pdata["description"].str.split({' ', ','})
+    for orig_word in orig_words:
+      if orig_word.len < 3:
+        continue  # ignore short words
+      let word = orig_word.toLower
+      if not packages_by_description_word.hasKey(word):
+        packages_by_description_word[word] = @[]
+      packages_by_description_word[word].add pdata["name"].str
 
 
   log_info "Loaded ", $pkgs.len, " packages"
@@ -135,12 +131,11 @@ proc save_packages() =
 proc search_packages*(query: string): CountTable[string] =
   ## Search packages by name, tag and keyword
   let query = query.split({' ', ','})
-  #TODO lowercase/normalized match
   var found_pkg_names = initCountTable[string]()
   for item in query:
 
     # matching by pkg name, weighted for full or partial match
-    for pn in packages_by_normalized_name.keys():
+    for pn in pkgs.keys():
       if item.normalize() == pn:
         found_pkg_names.inc(pn, val=5)
       elif pn.contains(item.normalize()):
@@ -156,25 +151,24 @@ proc search_packages*(query: string): CountTable[string] =
       for pn in packages_by_description_word[item.toLower]:
         found_pkg_names.inc(pn, val=1)
 
-
   # sort packages by best match
   found_pkg_names.sort()
   return found_pkg_names
 
 proc fetch_github_readme(pkg: Pkg, owner_repo_name: string) =
   ## Fetch README.* from GitHub
-  echo "fetching ", github_readme_tpl % owner_repo_name
+  log_debug "fetching ", github_readme_tpl % owner_repo_name
   try:
     let readme = getContent(github_readme_tpl % owner_repo_name,
     extraHeaders=github_readme_header & github_token)
     pkg["github_readme"] = newJString readme
   except:
-    echo getCurrentExceptionMsg()
+    log_debug getCurrentExceptionMsg()
     pkg["github_readme"] = newJString ""
 
 proc fetch_github_version_data(pkg: Pkg, owner_repo_name: string) =
   ## Fetch version data from GitHub
-  echo "fetching ", github_latest_version_tpl % owner_repo_name
+  log_debug "fetching ", github_latest_version_tpl % owner_repo_name
   try:
     let latest_version = getContent(github_latest_version_tpl % owner_repo_name,
       extraHeaders=github_token).parseJson
@@ -191,7 +185,7 @@ proc fetch_github_version_data(pkg: Pkg, owner_repo_name: string) =
 proc fetch_github_doc_pages(pkg: Pkg, owner, repo_name: string) =
   ## Fetch documentation pages from GitHub
   let url = github_doc_index_tpl % [owner.toLower, repo_name]
-  echo "Checking ", url
+  log_debug "Checking ", url
   if get(url).status.startsWith("200"):
     pkg["doc"] = newJString url
 
@@ -366,9 +360,11 @@ routes:
     let fn = tmp_doc_dir / pname / doc_path
     if existsFile(fn):
       log_debug "serving $#" % fn
-      resp fn.readFile()
+      resp base_page(fn.readFile())
     else:
       log_info "serving $# - not found" % fn
+      halt
+
 
   get "/loader":
     resp base_page(
