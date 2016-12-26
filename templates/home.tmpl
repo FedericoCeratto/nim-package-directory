@@ -1,0 +1,20 @@
+#? stdtmpl | standard
+#proc generate_home_page(): string =
+#  result = ""
+
+<h5>Welcome to the Nim package directory.</h5>
+    <h6>Display package by name:</h6>
+    <form onsubmit="location.href='/pkg/' + document.getElementById('pkg_name_inp').value; return false;">
+      <input type="text" id="pkg_name_inp" />
+      <button type="submit" class="submit input">Go to package</button>
+    </form>
+
+    <h6>Search for packages:</h6>
+    <form action="/search" method="GET" role="search">
+      <input type="text" name="query" class="" autofocus placeholder="Search tags/keywords"  />
+      <button type="submit" class="submit input">Search</button>
+    </form>
+    <p>Search across package names, tags and descriptions.
+    </p>
+
+

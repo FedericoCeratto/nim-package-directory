@@ -68,6 +68,10 @@
     #if pkg.has_key("doc"):
     <a class="button button-primary" href="${pkg["doc"].str}">Documentation</a>
     #end
+    # let url = pkg["url"].str
+    # if url.startswith("https://github.com/") or url.startswith("http://github.com/") or url.startswith("git"):
+    <a class="button" href="/docs/${pkg["name"].str}">Hosted docs</a>
+    # end if
   </div>
 
   <div>

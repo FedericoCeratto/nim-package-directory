@@ -6,6 +6,7 @@
 #
 
 from algorithm import sortedByIt
+from algorithm import sort, sorted
 from times import epochTime
 import asyncdispatch
 import httpclient
@@ -13,9 +14,11 @@ import httpcore
 import json
 import logging
 import os
+import osproc
 import parseopt
 import sequtils
 import strutils
+import streams
 import tables
 
 import jester
@@ -49,13 +52,23 @@ for kind, key, val in getopt():
   else: discard
 
 
-newConsoleLogger().addHandler
-newRollingFileLogger(conf["log_fname"].str, fmtStr = verboseFmtStr).addHandler
+let fl = newFileLogger(conf["log_fname"].str, fmtStr = "$datetime $levelname ")
+fl.addHandler
+
+proc log_debug(args: varargs[string, `$`]) =
+  debug args
+  fl.file.flushFile()
+
+proc log_info(args: varargs[string, `$`]) =
+  info args
+  fl.file.flushFile()
 
 type
   Pkg* = JsonNode
+  strSeq = seq[string]
 
 var pkgs = newTable[string, Pkg]()
+var pkgs_doc_files = newTable[string, strSeq]()
 
 # tag -> package names
 var packages_by_tag = newTable[string, seq[string]]()
@@ -63,9 +76,11 @@ var packages_by_description_word = newTable[string, seq[string]]()
 var packages_by_normalized_name = newTable[string, string]()
 
 include "templates/base.tmpl"
-include "templates/index.tmpl"
+include "templates/home.tmpl"
 include "templates/pkg.tmpl"
 include "templates/pkg_list.tmpl"
+include "templates/doc_files_list.tmpl"
+include "templates/loader.tmpl"
 
 # proc setup_seccomp() =
 #   ## Setup seccomp sandbox
@@ -75,17 +90,18 @@ include "templates/pkg_list.tmpl"
 #     ctx.add_rule(Allow, sc)
 #   ctx.load()
 
+
 proc load_packages*() =
   ## Load packages.json
   ## Rebuild packages_by_tag, packages_by_description_word
-  debug "loading $#" % packages_list_fname
+  log_debug "loading $#" % packages_list_fname
   pkgs.clear()
   let pkg_list = packages_list_fname.readFile.parseJson
   for pdata in pkg_list:
     if pdata.hasKey("name"):
       pkgs.add (pdata["name"].str, pdata)
 
-      packages_by_normalized_name[pdata["name"].str] = pdata["name"].str
+      packages_by_normalized_name[pdata["name"].str.normalize()] = pdata["name"].str
 
       for tag in pdata["tags"]:
         if not packages_by_tag.hasKey(tag.str):
@@ -103,9 +119,8 @@ proc load_packages*() =
         packages_by_description_word[word].add pdata["name"].str
 
 
-  echo "Loaded ", $pkgs.len, " packages"
+  log_info "Loaded ", $pkgs.len, " packages"
 
-from algorithm import sort, sorted
 
 proc cleanupWhitespace(s: string): string
 
@@ -118,24 +133,28 @@ proc save_packages() =
   packages_list_fname.writeFile(new_pkgs.pretty.cleanupWhitespace)
 
 proc search_packages*(query: string): CountTable[string] =
-  ## Search packages by tag and keyword
+  ## Search packages by name, tag and keyword
   let query = query.split({' ', ','})
-  #TODO lowercase match
+  #TODO lowercase/normalized match
   var found_pkg_names = initCountTable[string]()
   for item in query:
-    if packages_by_normalized_name.has_key(item.normalize()):
-        # matching by name is weighted more than everything else
-        let pn = packages_by_normalized_name[item.normalize()]
+
+    # matching by pkg name, weighted for full or partial match
+    for pn in packages_by_normalized_name.keys():
+      if item.normalize() == pn:
         found_pkg_names.inc(pn, val=5)
+      elif pn.contains(item.normalize()):
+        found_pkg_names.inc(pn, val=3)
 
     if packages_by_tag.has_key(item):
       for pn in packages_by_tag[item]:
         # matching by tags is weighted more than by word
         found_pkg_names.inc(pn, val=3)
 
+    # matching by description, weighted 1
     if packages_by_description_word.has_key(item.toLower):
       for pn in packages_by_description_word[item.toLower]:
-        found_pkg_names.inc(pn)
+        found_pkg_names.inc(pn, val=1)
 
 
   # sort packages by best match
@@ -187,7 +206,7 @@ settings:
 routes:
 
   get "/":
-    resp base_page(generate_index_page())
+    resp base_page(generate_home_page())
 
   get "/search":
     let found_pkg_names = search_packages(@"query")
@@ -226,27 +245,28 @@ routes:
   post "/update_package":
     ## Create or update a package description
     const required_fields = @["name", "url", "method", "tags", "description",
-      "license", "web", "signature", "authorized_keys"]
+      "license", "web", "signatures", "authorized_keys"]
     var pkg_data: JsonNode
     try:
       pkg_data = parseJson(request.body)
     except:
-      info "Unable to parse JSON payload"
+      log_info "Unable to parse JSON payload"
       resp Http400, "Unable to parse JSON payload"
 
     for field in required_fields:
       if not pkg_data.hasKey(field):
-        info "Missing required field $#" % field
+        log_info "Missing required field $#" % field
         resp Http400, "Missing required field $#" % field
 
-    let signature = pkg_data["signature"].str
-    pkg_data.delete("signature")
+    let signature = pkg_data["signatures"][0].str
 
     try:
-      let key_id = verify_gpg_signature(pkg_data, signature)
-      info "received key", key_id
+      let pkg_data_copy = pkg_data.copy()
+      pkg_data_copy.delete("signatures")
+      let key_id = verify_gpg_signature(pkg_data_copy, signature)
+      log_info "received key", key_id
     except:
-      info "Invalid signature"
+      log_info "Invalid signature"
       resp Http400, "Invalid signature"
 
     let name = pkg_data["name"].str
@@ -268,17 +288,92 @@ routes:
     if pkg_already_exists:
       try:
         let old_keys = pkgs[name]["authorized_keys"].getElems.mapIt(it.str)
-        let key_id = verify_gpg_signature_is_allowed(pkg_data, signature, old_keys)
-        info "$# updating package $#" % [key_id, name]
+        let pkg_data_copy = pkg_data.copy()
+        pkg_data_copy.delete("signatures")
+        let key_id = verify_gpg_signature_is_allowed(pkg_data_copy, signature, old_keys)
+        log_info "$# updating package $#" % [key_id, name]
       except:
-        info "Key not accepted"
+        log_info "Key not accepted"
         resp Http400, "Key not accepted"
 
     pkgs[name] = pkg_data
     save_packages()
-    info if pkg_already_exists: "Updated pkg $#" % name
-      else: "Added pkg $#" % name
+    log_info if pkg_already_exists: "Updated existing package $#" % name
+      else: "Added new package $#" % name
     resp "OK"
+
+  get "/packages.json":
+    ## Serve the packages list file
+    resp packages_list_fname.readFile
+
+  get "/docs/@pkg_name/?@doc_path?":
+    ## Serve hosted docs for a package
+    const
+      tmp_doc_dir = "/tmp/doc"
+      git_bin_path = "/usr/bin/git"
+      nim_bin_path = "/usr/bin/nim"
+    let pname = @"pkg_name"
+    let doc_path = @"doc_path"
+    if not pkgs.hasKey(pname):
+      resp "<html><body>Pkg not found</body></html>"
+    let pkg = pkgs[pname]
+    let url = pkg["url"].str
+    let wd = tmp_doc_dir / pname
+    if not wd.existsDir():
+      # Check out pkg
+      var doc_fnames: seq[string] = @[]
+      tmp_doc_dir.createDir()
+      log_debug "checking out $#" % url
+      var p = startProcess(
+        git_bin_path,  args=["clone", url, pname],
+        workingDir=tmp_doc_dir
+      )
+      if p.waitForExit(timeout=60000) == 0:
+        log_debug "OK"
+      else:
+        error "Stdout: $#" % p.outputStream().readAll()
+        error "Stderr: $#" % p.errorStream().readAll()
+
+      for fname in wd.walkDirRec(filter={pcFile}):
+        if not fname.endswith(".nim"):
+          continue
+        log_debug "running nim doc for $#" % fname
+        p = startProcess(
+          nim_bin_path,
+          args=["doc", fname],
+          workingDir=wd
+        )
+        if p.waitForExit(timeout=60000) == 0:
+          log_debug "OK"
+          log_debug "Stdout: $#" % p.outputStream().readAll()
+          log_debug "Stderr: $#" % p.errorStream().readAll()
+        else:
+          error "Stdout: $#" % p.outputStream().readAll()
+          error "Stderr: $#" % p.errorStream().readAll()
+        doc_fnames.add fname[wd.len..^1][1..^4] & "html"
+
+      # doc gen done
+      pkgs_doc_files[pname] = doc_fnames
+
+    if not pkgs_doc_files.hasKey(pname):
+      resp "meow :3"
+
+    if doc_path == "":
+      resp base_page(
+        generate_doc_files_list_page(pname, pkgs_doc_files[pname])
+      )
+
+    let fn = tmp_doc_dir / pname / doc_path
+    if existsFile(fn):
+      log_debug "serving $#" % fn
+      resp fn.readFile()
+    else:
+      log_info "serving $# - not found" % fn
+
+  get "/loader":
+    resp base_page(
+      generate_loader_page()
+    )
 
 
 proc cleanupWhitespace(s: string): string =
@@ -316,6 +411,7 @@ proc cleanupWhitespace(s: string): string =
 
 proc main() =
   #setup_seccomp()
+  log_info "starting"
   load_packages()
   runForever()
 

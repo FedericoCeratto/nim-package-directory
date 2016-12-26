@@ -1,0 +1,25 @@
+#? stdtmpl | standard
+#proc generate_rss_feed(title, desc, url, buildDate, pubDate: string, ttl:int, items:seq[RssItem]): string =
+#  result = ""
+<?xml version="1.0" encoding="UTF-8" ?>
+<rss version="2.0">
+  <channel>
+    <title>${title}</title>
+    <description>${desc}</description>
+    <link>${url}</link>
+    <lastBuildDate>${buildDate}</lastBuildDate>
+    <pubDate>${pubDate}</pubDate>
+    <ttl>${ttl}</ttl>
+
+    # for item in items:
+    <item>
+     <title>${item.title}</title>
+     <description>${item.desc}</description>
+     <link>${item.url}</link>
+     <guid isPermaLink="true">${item.guid}</guid>
+     <pubDate>${item.pubDate}</pubDate>
+    </item>
+    # end for
+
+  </channel>
+</rss>
