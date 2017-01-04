@@ -3,10 +3,9 @@
 
 .Features:
 - [x] Package search
-- [ ] Search selectors
 - [x] Display GitHUb readme
 - [ ] Fetch & install packages, serve badges
 - [ ] Build and serve pkg docs
 - [ ] Pkg metadata signing
 - [ ] Pkgs RSS / web feed
-
+- [ ] Search selectors

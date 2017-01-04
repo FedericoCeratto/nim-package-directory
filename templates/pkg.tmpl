@@ -27,9 +27,26 @@
         <th>Website</th>
         <td><a href="${pkg["web"].str}">${pkg["web"].str}</a></td>
       </tr>
+
+      # if pkg.has_key("github_versions"):
+      <tr class="Versions">
+        <th>Versions</th>
+        <td>
+          # for ver in pkg["github_versions"]:
+          ${ver.str}
+          # end for
+        </td>
+      </tr>
+      # end if
+
       <tr class="version">
         <th>Latest version</th>
-        <td>${pkg["github_latest_version"].str}</td>
+        <td>
+          <a href="https://nimpkgdir.firelet.net/ci/badges/${pkg["name"].str}/nimdevel/output.html">
+            <img src="https://nimpkgdir.firelet.net/ci/badges/${pkg["name"].str}/version.svg" alt="badge">
+          </a>
+        </td>
+
       </tr>
       #end if
       <tr class="license">
@@ -46,12 +63,9 @@
       </tr>
       <tr class="license">
         <th>CI</th>
-        <td>
-          <a href="http://ci.nim-lang.org/${pkg["name"].str}/nimdevel/output.html">
-            <img src="http://ci.nim-lang.org/${pkg["name"].str}/version.svg">
-          </a>
-          <a href="http://ci.nim-lang.org/${pkg["name"].str}/nimdevel/output.html">
-            <img src="http://ci.nim-lang.org/${pkg["name"].str}/nimdevel/status.svg">
+        <td id="ci">
+          <a href="https://nimpkgdir.firelet.net/ci/badges/${pkg["name"].str}/nimdevel/output.html">
+            <img src="https://nimpkgdir.firelet.net/ci/badges/${pkg["name"].str}/nimdevel/status.svg">
           </a>
         </td>
       </tr>

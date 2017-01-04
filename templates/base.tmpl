@@ -30,14 +30,23 @@ div.updated_pkg {
   margin: .2em;
   width: 40em;
 }
+div#header {
+  margin-top: 3px;
+  line-height: 4em;
+}
+div#header div a {
+  text-align: center;
+  vertical-align: middle;
+  text-decoration: none;
+  vertical-align: middle;
+}
     </style>
 
   </head>
   <body>
 
-
     <div class="container">
-      <div class="row" style="">
+      <div class="row" id="header" style="">
         <div class="one column">
           <a class="navbar-brand" href="http://nim-lang.org/">
             <img id="nimlogo"
@@ -46,13 +55,13 @@ div.updated_pkg {
                  title="Go to Nim.org Website" />
           </a>
         </div>
-        <div class="three columns">
+        <div class="two columns">
           <a href="/">Main Page</a>
         </div>
-        <div class="three columns">
+        <div class="two columns">
           <a href="https://github.com/nim-lang/nimble">Using Nimble</a>
         </div>
-        <div class="five columns">
+        <div class="seven columns">
           <form action="/search" method="GET" role="search">
             <input type="text" name="query" class="" placeholder="Search tags/keywords"  />
             <button type="submit" class="submit input">Search</button>
