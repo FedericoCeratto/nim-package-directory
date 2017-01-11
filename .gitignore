@@ -2,3 +2,6 @@ nimcache/
 makefile
 conf.json
 node_modules
+.cache.json
+package_directory
+pkgs.log

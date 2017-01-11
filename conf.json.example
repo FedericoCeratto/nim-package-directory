@@ -1,5 +1,5 @@
 {
   "github_token": "",
-  "log_fname": "pkgs.log"
+  "log_fname": "pkgs.log",
   "packages_list_fname": "packages.json"
 }

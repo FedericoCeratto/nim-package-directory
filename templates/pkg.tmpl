@@ -2,107 +2,114 @@
 #proc generate_pkg_page(pkg: Pkg): string =
 #  result = ""
 
-<div class="row">
+<article class="package">
+    <h1 class="text-centered page-title main-heading package__name">${pkg["name"].str}</h1>
+    <p class="package__description muted">${pkg["description"].str}</p>
 
-  <h2>${pkg["name"].str}</h2>
-  <p >${pkg["description"].str}</p>
-  #if pkg.has_key("github_latest_version_time"):
-  <small>Released on ${pkg["github_latest_version_time"].str}</small>
-  #end if
-  </p>
+    #if pkg.has_key("github_latest_version_time"):
+    <small>Released on ${pkg["github_latest_version_time"].str}</small>
+    #end if
 
-  <table class="u-full-width">
-    <tbody>
-      #if pkg.has_key("github_owner"):
-      <tr>
-        <th>Maintainer</th>
-        <td>
-          <a href="https://github.com/${pkg["github_owner"].str}"> ${pkg["github_owner"].str}</a>
-        </td>
-      </tr>
-      #end if
-      #if pkg.has_key("web"):
-      <tr>
-      <tr>
-        <th>Website</th>
-        <td><a href="${pkg["web"].str}">${pkg["web"].str}</a></td>
-      </tr>
+    <div class="pure-g">
+        <div class="pure-u-1 pure-u-md-2-3">
+            <p>To install, run:</p>
+            <pre><code>nimble install ${pkg["name"].str}</code></pre>
+            <p>See <a href="https://github.com/nim-lang/nimble#nimble-usage">using Nimble</a> for more information.</p>
 
-      # if pkg.has_key("github_versions"):
-      <tr class="Versions">
-        <th>Versions</th>
-        <td>
-          # for ver in pkg["github_versions"]:
-          ${ver.str}
-          # end for
-        </td>
-      </tr>
-      # end if
+            <ul class="package__buttons flat-list">
+                #if pkg.has_key("github_latest_version_url"):
+                <li><a class="button" href="${pkg["github_latest_version_url"].str}">Download</a></li>
+                #end if
 
-      <tr class="version">
-        <th>Latest version</th>
-        <td>
-          <a href="https://nimpkgdir.firelet.net/ci/badges/${pkg["name"].str}/nimdevel/output.html">
-            <img src="https://nimpkgdir.firelet.net/ci/badges/${pkg["name"].str}/version.svg" alt="badge">
-          </a>
-        </td>
+                #if pkg.has_key("web"):
+                <li><a class="button" href="${pkg["web"].str}">Project Website</a></li>
+                #end if
 
-      </tr>
-      #end if
-      <tr class="license">
-        <th>License</th>
-        <td>${pkg["license"].str}</td>
-      </tr>
-      <tr class="tags">
-        <th>Tags</th>
-        <td>
-          # for tag in pkg["tags"]:
-          <a href="/search?query=$tag.str">$tag.str</a>
-          # end for
-        </td>
-      </tr>
-      <tr class="license">
-        <th>CI</th>
-        <td id="ci">
-          <a href="https://nimpkgdir.firelet.net/ci/badges/${pkg["name"].str}/nimdevel/output.html">
-            <img src="https://nimpkgdir.firelet.net/ci/badges/${pkg["name"].str}/nimdevel/status.svg">
-          </a>
-        </td>
-      </tr>
-    </tbody>
-  </table>
+                #if pkg.has_key("doc"):
+                <li><a class="button button-primary" href="${pkg["doc"].str}">Documentation</a></li>
+                #end if
 
-  <div class="btn-toolbar">
-    #if pkg.has_key("github_latest_version_url"):
-    <a class="button" href="${pkg["github_latest_version_url"].str}">Download</a>
-    #end
-    #if pkg.has_key("web"):
-    <a class="button" href="${pkg["web"].str}">Project Website</a>
-    #end
-    #if pkg.has_key("doc"):
-    <a class="button button-primary" href="${pkg["doc"].str}">Documentation</a>
-    #end
-    # let url = pkg["url"].str
-    # if url.startswith("https://github.com/") or url.startswith("http://github.com/") or url.startswith("git"):
-    <a class="button" href="/docs/${pkg["name"].str}">Hosted docs</a>
-    # end if
-  </div>
+                #let url = pkg["url"].str
+                #if url.startswith("https://github.com/") or url.startswith("http://github.com/") or url.startswith("git"):
+                <li><a class="button" href="/docs/${pkg["name"].str}">Hosted docs</a></li>
+                #end if
+            </ul>
+        </div>
+        <div class="pure-u-1 pure-u-md-1-3">
+            <table class="pure-table pure-table-horizontal table--word-break">
+                <tbody>
+                    #if pkg.has_key("github_owner"):
+                    <tr>
+                        <td>Maintainer</td>
+                        <td>
+                            <a href="https://github.com/${pkg["github_owner"].str}"> ${pkg["github_owner"].str}</a>
+                        </td>
+                    </tr>
+                    #end if
 
-  <div>
-    <br/>
-    <p>To install, run:</p>
-    <pre><code>nimble install ${pkg["name"].str}</code></pre>
-    <p>See <a href="https://github.com/nim-lang/nimble#nimble-usage">using Nimble</a> for more information.</p>
-  </div>
-  #if pkg.has_key("github_readme"):
-  <div id="readme">
-    <div class="heading">
-      <h3>GitHub readme</h3>
+                    #if pkg.has_key("web"):
+                    <tr>
+                        <td>Website</td>
+                        <td><a href="${pkg["web"].str}">${pkg["web"].str}</a></td>
+                    </tr>
+
+                    #if pkg.has_key("github_versions"):
+                    <tr class="Versions">
+                        <td>Versions</td>
+                        <td>
+#for ver in pkg["github_versions"]:
+    ${ver.str}
+#end for
+                        </td>
+                    </tr>
+                    #end if
+
+                    <tr class="version">
+                        <td>Latest version</td>
+                        <td>
+                            <a href="https://nimpkgdir.firelet.net/ci/badges/${pkg["name"].str}/nimdevel/output.html">
+                                <img src="https://nimpkgdir.firelet.net/ci/badges/${pkg["name"].str}/version.svg" alt="badge">
+                            </a>
+                        </td>
+                    </tr>
+                    #end if
+
+                    <tr class="license">
+                        <td>License</td>
+                        <td>${pkg["license"].str}</td>
+                    </tr>
+
+                    <tr class="tags">
+                        <td>Tags</td>
+                        <td>
+#for tag in pkg["tags"]:
+    <a href="/search?query=$tag.str">$tag.str</a>
+#end for
+                        </td>
+                    </tr>
+
+                    <tr class="license">
+                        <td>CI</td>
+                        <td id="ci">
+                            <a href="https://nimpkgdir.firelet.net/ci/badges/${pkg["name"].str}/nimdevel/output.html">
+                                <img src="https://nimpkgdir.firelet.net/ci/badges/${pkg["name"].str}/nimdevel/status.svg">
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
     </div>
-    <article id="readme">
-      ${pkg["github_readme"].str}
-    </article>
-  </div>
-  #end
 
+
+    #if pkg.has_key("github_readme"):
+    <div id="package__readme">
+        <div class="heading">
+            <h2>GitHub readme</h2>
+        </div>
+        <article id="readme">
+            ${pkg["github_readme"].str}
+        </article>
+    </div>
+    #end
 </div>
