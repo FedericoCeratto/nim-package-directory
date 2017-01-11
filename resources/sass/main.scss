@@ -1,0 +1,401 @@
+@import "vars";
+@import "fonts";
+@import "banner";
+
+// 3rd party
+@import 'purecss-sass/vendor/assets/stylesheets/purecss';
+
+// Adjust anchor link location to not cover titles with header
+:target:before {
+	content: "";
+	display: block;
+	height: $menu-height;
+	margin: -$menu-height 0 0;
+}
+
+body {
+	background-color: $default-background-color;
+	color: $default-color;
+	cursor: default;
+	font-size: $desktop-default-font-size;
+	margin-top: $menu-height;
+}
+
+// Gradient that will cause overflowing menu items to "fade"
+// See media query for actual declaration
+.menu-fade {
+	display: none; // Displayed only on small screens
+}
+
+h1, h2, h3, h4, h5, h6 {
+	font-weight: normal;
+}
+
+// Pure-friendly font-family setting
+// http://purecss.io/grids/#using-grids-with-custom-fonts
+html, button, input, select, textarea,
+.pure-g [class *= "pure-u"] {
+	font-family: "Titillium Web", sans-serif;
+}
+
+h1 {
+	margin: 50px 0;
+}
+
+h2 {
+	margin: 48px 0 16px 0;
+}
+
+a {
+	text-decoration: none;
+	transition: 0.15s color;
+	color: $a-color;
+	&:hover, &:focus {
+		text-decoration: underline;
+		color: lighten($a-color, 10%);
+	}
+	&:active {
+		text-decoration: none;
+		color: darken($a-color, 10%);
+	}
+}
+
+code {
+	font-family: "Inconsolata", monospace;
+	font-size: 110%;
+	padding: 2px;
+	background-color: #dfdfdf;
+	border-radius: 2px;
+}
+
+.page-subtitle {
+	margin: -40px 0 40px 0;
+}
+
+hr {
+	border: 1px solid $hr-color;
+	margin: 25px 0;
+}
+
+.text-large {
+	font-size: 135%;
+}
+
+footer {
+	padding: 15px 0 20px 0;
+	margin-top: 75px;
+	color: $footer-color;
+	background-color: $footer-background-color;
+	font-size: 90%;
+	ul {
+		padding-left: 0;
+	}
+	li {
+		list-style-type: none;
+	}
+	a {
+		color: $a-footer-color;
+		&:hover, &:focus {
+			color: lighten($a-footer-color, 10%);
+		}
+		&:active {
+			color: darken($a-footer-color, 10%);
+		}
+	}
+}
+
+.background-faded {
+	background-color: darken($default-background-color, 8%);
+}
+
+.copyright {
+	vertical-align: bottom;
+	color: #567;
+}
+
+// Styles that affect the whole menu
+.pure-menu.pure-menu-horizontal {
+	padding: 0;
+	z-index: 100;
+	line-height: 1;
+	margin-top: -$menu-height;
+	background-color: $menu-background-color;
+	box-shadow: 0 0 8px rgba(0, 0, 0, 0.6); // Drop shadow
+	position: fixed;
+
+	a {
+		color: $menu-color;
+	}
+
+	// Remove extraneous spacing between menu items
+	ul {
+		font-size: 0;
+	}
+
+	li {
+		font-size: $desktop-default-font-size;
+	}
+}
+
+.site-logo-container {
+	margin: 0 0 -2px 0 !important;
+}
+
+.pure-menu-heading {
+	text-transform: none;
+	font-weight: bold;
+}
+
+.menu-separator {
+	height: 30px;
+	margin: 0 10px -12px 10px;
+	display: inline-block;
+	width: 0;
+	border-left: 1px solid $menu-separator-color;
+}
+
+.news-item {
+	padding: 20px;
+	text-align: justify;
+}
+
+.content, .nav-content {
+	max-width: 1200px;
+	margin: 0 auto;
+}
+
+@media (max-width: 1250px) {
+	.content {
+		margin: 0 2.5%;
+	}
+}
+
+.text-centered {
+	text-align: center;
+}
+
+a.pure-menu-link {
+	transition: .15s background-color;
+	text-decoration: none;
+	padding: 17px 15px;
+	margin-top: -7px;
+	&:hover, &:focus {
+		background-color: rgba(255, 255, 255, .15);
+	}
+	&:active {
+		background-color: rgba(0, 0, 0, .15);
+	}
+}
+
+a.pure-menu-link.pure-menu-heading {
+	padding: 10px;
+}
+
+.header-main {
+	margin: 0;
+}
+
+// The main section of the home page
+.jumbotron {
+	padding: 50px 0;
+	background-color: $jumbotron-background-color;
+	color: $jumbotron-color;
+
+	h1 {
+		font-size: 250%;
+		margin-bottom: 0;
+		margin-top: 16px;
+		color: $highlight-color;
+	}
+
+	h2 {
+		margin-top: 16px;
+		font-size: 150%;
+	}
+
+	li {
+		list-style-type: none;
+
+		&::before {
+			content: "» ";
+			font-weight: bold;
+			margin-right: 8px;
+			color: $highlight-color;
+		}
+	}
+
+	a {
+		color: $a-dark-color;
+		&:hover, &:focus {
+			color: lighten($a-dark-color, 10%);
+		}
+		&:active {
+			color: darken($a-dark-color, 10%);
+		}
+	}
+}
+
+.pure-g > div {
+	box-sizing: border-box;
+}
+
+// The left part of the main page jumbotron
+.main-block {
+	padding-right: 30px;
+}
+
+.hljs {
+	padding-left: 20px;
+}
+
+// For FAQ and news post content
+.width-reduced {
+	max-width: 800px;
+	margin: 0 auto;
+}
+
+// For the news list
+.post-meta {
+	font-size: 125%;
+	margin: 2px 0;
+	color: #888;
+}
+
+.news-item h2 {
+	font-size: 140%;
+	margin: 2px 0;
+}
+
+.main-heading {
+	text-align: center;
+	font-size: 250%;
+	margin-top: 0;
+}
+
+.section-heading {
+	@extend .main-heading;
+	margin-top: 50px;
+}
+
+.page-title {
+	padding-top: 40px; // This needs to be a padding, else the whole menu is vertically offset
+}
+
+.post-date {
+	margin-top: -40px;
+	margin-bottom: 40px;
+}
+
+.feed-rss {
+	text-align: center;
+	margin: 25px 0 50px 0;
+}
+
+.pure-button {
+	padding: 12px 24px;
+}
+
+// Buttons of the main page's jumbotron
+.text-centered a.pure-button {
+	margin: 15px 10px;
+	color: $default-color;
+	&:hover, &:focus {
+		background-color: lighten(#ccc, 10%);
+		color: $default-color;
+	}
+	&:active {
+		background-color: darken(#ccc, 10%);
+		color: $default-color;
+	}
+}
+
+a.pure-button {
+	background-color: #ccc;
+	color: $default-color;
+	transition: .15s background-color;
+	text-decoration: none;
+	// Undo some Pure styles
+	&:hover, &:focus, &:active {
+		box-shadow: none;
+		background-image: none;
+	}
+}
+
+a.pure-button.pure-button-primary {
+	background-color: $highlight-color;
+	color: $default-color;
+	&:hover, &:focus {
+		background-color: lighten($highlight-color, 10%);
+		color: $default-color;
+	}
+	&:active {
+		background-color: darken($highlight-color, 10%);
+		color: $default-color;
+	}
+}
+
+// Styles that apply only to medium-sized screens (small laptops for example)
+@media (max-width: 1370px) {
+	body {
+		font-size: $mobile-default-font-size;
+		margin-top: $menu-height * $mobile-default-font-size / $desktop-default-font-size;
+	}
+
+	.pure-menu.pure-menu-horizontal {
+		margin-top: -($menu-height * $mobile-default-font-size / $desktop-default-font-size);
+
+		li {
+			font-size: $mobile-default-font-size;
+		}
+	}
+
+	a.pure-menu-link {
+		margin-top: -7px;
+	}
+
+	.site-logo {
+		height: 25px;
+		padding-left: 4px;
+	}
+
+	.menu-separator {
+		margin: 0 5px -12px 5px;
+	}
+}
+
+// Styles that apply only to narrow screens (typically mobile devices)
+@media (max-width: 1023px) {
+	.jumbotron .pure-u-1 {
+		margin-bottom: 50px;
+	}
+
+	.jumbotron h1 {
+		margin-top: 0;
+	}
+
+	.post-meta {
+		margin-bottom: -5px;
+	}
+
+	.news-item h2 {
+		margin-bottom: 40px;
+	}
+}
+
+// Styles that apply only to very narrow screens (usually smartphones)
+@media (max-width: 767px) {
+	footer {
+		text-align: center;
+	}
+
+	.menu-fade {
+		display: block; // Restore display
+		height: $menu-height * $mobile-default-font-size / $desktop-default-font-size + 2px;
+		width: $menu-fade-width;
+		position: fixed;
+		pointer-events: none;
+		right: 0;
+		top: 0;
+		background: linear-gradient(to right, transparent, $menu-background-color);
+	}
+}
