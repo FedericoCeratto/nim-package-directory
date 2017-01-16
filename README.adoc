@@ -3,7 +3,9 @@
 
 .Features:
 - [x] Package search
-- [x] Display GitHUb readme
+- [x] Display GitHub readme
+- [ ] Display GitLab readme
+- [ ] Display BitBucket readme
 - [ ] Fetch & install packages, serve badges
 - [ ] Build and serve pkg docs
 - [ ] Pkg metadata signing

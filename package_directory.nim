@@ -323,7 +323,8 @@ proc fetch_using_git(pname, url: string): bool =
   return true
 
 proc fetch_and_build_pkg_using_nimble_old(pname: string): bool =
-  let tmp_dir = "/tmp/nimble_install_test/" / pname
+  let tmp_dir = tmp_nimble_root_dir / pname
+  log_debug "Starting nimble install $# --nimbleDir=$# -y" % [pname, tmp_dir]
   let
     p = startProcess(
       nimble_binpath,
@@ -335,8 +336,8 @@ proc fetch_and_build_pkg_using_nimble_old(pname: string): bool =
   for time_cnt in 0..timeout:
     exit_code = p.peekExitCode()
     if exit_code == -1:
-      sleep(100)
-      log_debug "waiting..."
+      sleep(200)
+      log_debug "waiting... "
     else:
       break
 
@@ -351,8 +352,7 @@ proc fetch_and_build_pkg_using_nimble_old(pname: string): bool =
     PkgBuildStatus.Failed
 
   discard p.waitForExit()
-  let
-    output = p.outputStream().readAll()
+  let output = p.outputStream().readAll()
   log_debug output
 
   pkgs_doc_files[pname].build_output = output
@@ -387,18 +387,34 @@ proc fetch_pkg_using_nimble(pname: string): bool =
   pkgs_doc_files[pname].build_output = outp
   return true
 
-proc build_docs(pname: string): strSeq =
-  let pkg_install_dir = tmp_nimble_root_dir / pname
+proc locate_pkg_root_dir(pname: string): string =
+  ## Locate installed pkg root dir
+  # Full path example:
+  # /dev/shm/nim_package_dir/nimgame2/pkgs/nimgame2-0.1.0
+  let pkgs_dir = tmp_nimble_root_dir / pname / "pkgs"
+  for kind, path in walkDir(pkgs_dir, relative=true):
+    if path.startswith(pname & "-"):  # fixme: better heuristic
+      result = pkgs_dir / path
+      log_debug "Found pkg root: ", result
+      return
 
+  raise newException(Exception, "Root dir for $# not found" % pname)
+
+proc build_docs(pname: string): strSeq =
+  ##
   result = @[]
-  for fname in pkg_install_dir.walkDirRec(filter={pcFile}):
+  let pkg_root_dir = locate_pkg_root_dir(pname)
+  log_debug "Walking ", pkg_root_dir
+  #for fname in pkg_root_dir.walkDirRec(filter={pcFile}): # Bug in walkDirRec
+  for fname in pkg_root_dir.walkDirRec():
+    #log_debug "Walking ", fname
     if not fname.endswith(".nim"):
       continue
     log_debug "running nim doc for $#" % fname
-    run_process(nim_bin_path, "nim doc", pkg_install_dir, 60, true,
+    run_process(nim_bin_path, "nim doc", pkg_root_dir, 60, true,
       "doc", fname)
-    result.add fname[pkg_install_dir.len..^1][1..^4] & "html"
-    log_debug "adding ", fname[pkg_install_dir.len..^1][1..^4] & "html"
+    result.add fname[pkg_root_dir.len..^1][1..^4] & "html"
+    log_debug "adding ", fname[pkg_root_dir.len..^1][1..^4] & "html"
 
 proc fetch_and_build_pkg_if_needed(pname: string) =
   ## Fetch package and build docs
@@ -432,6 +448,7 @@ proc fetch_and_build_pkg_if_needed(pname: string) =
     return
 
   let fnames = build_docs(pname)
+  log_debug "Generated $# html files" % $fnames.len
   pkgs_doc_files[pname].fnames = fnames
 
   pkgs_doc_files[pname].expire_time = getTime() + build_expiry_time
@@ -552,10 +569,9 @@ routes:
     ## Serve the packages list file
     resp packages_list_fname.readFile
 
-  get "/docs/@pkg_name/?@doc_path?":
-    ## Serve hosted docs for a package
+  get "/docs/@pkg_name/?":
+    ## Serve hosted docs for a package: summary page
     let pname = normalize(@"pkg_name")
-    let doc_path = @"doc_path"
     if not pkgs.hasKey(pname):
       resp base_page("<p>Package not found</p>")
     let pkg = pkgs[pname]
@@ -564,19 +580,48 @@ routes:
     fetch_and_build_pkg_if_needed(pname)
 
     # Show files summary
-    if doc_path == "":
-      resp base_page(
-        generate_doc_files_list_page(pname, pkgs_doc_files[pname])
-      )
+    resp base_page(
+      generate_doc_files_list_page(pname, pkgs_doc_files[pname])
+    )
+
+  #get "/docs/@pkg_name_and_doc_path":
+  get "/docs/@pkg_name/@a?/?@b?/?@c?/?@d?":
+    ## Serve hosted docs for a package
+    let pname = normalize(@"pkg_name")
+    if not pkgs.hasKey(pname):
+      resp base_page("<p>Package not found</p>")
+    let pkg = pkgs[pname]
+
+    # Check out pkg and build docs. Modifies pkgs_doc_files
+    fetch_and_build_pkg_if_needed(pname)
+
+    let pkg_root_dir = locate_pkg_root_dir(pname)
+
+    # Horrible hack
+    let messy_path = @"a" / @"b" / @"c" / @"d"
+    let doc_path = strip(messy_path, true, true, {'/'})
+
+    log_debug "Attempting to serve doc path $# $#" % [pname, doc_path]
+
+    # Example:
+    # https://nimpkgdir.firelet.net/docs/nimgame2/nimgame2/audio.html
+    # From:
+    # /dev/shm/nim_package_dir/nimgame2/pkgs/nimgame2-0.1.0/nimgame2/audio.html
+
+    let fn = pkg_root_dir / doc_path
+    if not existsFile(fn):
+      log_info "serving $# - not found" % fn
+      resp base_page """
+        <p>Sorry, that file does not exists.
+        <a href="/pkg/$#">Go back to $#</a>
+        </p>
+        """ % [pname, pname]
 
     # Serve doc file
-    let fn = tmp_nimble_root_dir / pname / doc_path
-    if existsFile(fn):
-      log_debug "serving $#" % fn
-      resp base_page(fn.readFile())
-    else:
-      log_info "serving $# - not found" % fn
-      halt
+    let head = """<h4>Doc files for <a href="/pkg/$#">$#</a></h4>""" % [pname, pname]
+    let page = head & fn.readFile()
+    resp base_page(page)
+
 
 
   get "/loader":
@@ -603,6 +648,10 @@ routes:
     )
     resp(r, contentType="application/rss+xml")
 
+  get "/stats":
+    resp base_page """
+    <p>Runtime: $#</p>
+    """ % [$cpuTime()]
 
   # CI Routing
 
