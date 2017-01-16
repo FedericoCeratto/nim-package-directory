@@ -3,74 +3,63 @@
 #  result = ""
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-
-    <title>Nim package directory</title>
-    <link rel="shortcut icon" href="data:image/x-icon;base64,AAABAAEAEBAAAAEAIABoBAAAFgAAACgAAAAQAAAAIAAAAAEAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AAAAAAUAAAAF////AP///wD///8A////AP///wD///8A////AP///wD///8A////AAAAAAIAAABbAAAAlQAAAKIAAACbAAAAmwAAAKIAAACVAAAAWwAAAAL///8A////AP///wD///8A////AAAAABQAAADAAAAAYwAAAA3///8A////AP///wD///8AAAAADQAAAGMAAADAAAAAFP///wD///8A////AP///wAAAACdAAAAOv///wD///8A////AP///wD///8A////AP///wD///8AAAAAOgAAAJ3///8A////AP///wAAAAAnAAAAcP///wAAAAAoAAAASv///wD///8A////AP///wAAAABKAAAAKP///wAAAABwAAAAJ////wD///8AAAAAgQAAABwAAACIAAAAkAAAAJMAAACtAAAAFQAAABUAAACtAAAAkwAAAJAAAACIAAAAHAAAAIH///8A////AAAAAKQAAACrAAAAaP///wD///8AAAAARQAAANIAAADSAAAARf///wD///8AAAAAaAAAAKsAAACk////AAAAADMAAACcAAAAnQAAABj///8A////AP///wAAAAAYAAAAGP///wD///8A////AAAAABgAAACdAAAAnAAAADMAAAB1AAAAwwAAAP8AAADpAAAAsQAAAE4AAAAb////AP///wAAAAAbAAAATgAAALEAAADpAAAA/wAAAMMAAAB1AAAAtwAAAOkAAAD/AAAA/wAAAP8AAADvAAAA3gAAAN4AAADeAAAA3gAAAO8AAAD/AAAA/wAAAP8AAADpAAAAtwAAAGUAAAA/AAAA3wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAADfAAAAPwAAAGX///8A////AAAAAEgAAADtAAAAvwAAAL0AAADGAAAA7wAAAO8AAADGAAAAvQAAAL8AAADtAAAASP///wD///8A////AP///wD///8AAAAAO////wD///8A////AAAAAIcAAACH////AP///wD///8AAAAAO////wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A//8AAP//AAD4HwAA7/cAAN/7AAD//wAAoYUAAJ55AACf+QAAh+EAAAAAAADAAwAA4AcAAP5/AAD//wAA//8AAA=="/>
-    <meta charset="utf-8">
-    <meta name="description" content="">
-    <meta name="author" content="">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link href="//fonts.googleapis.com/css?family=Raleway:400,300,600" rel="stylesheet" type="text/css">
-    <link rel="stylesheet" href="/skeleton/css/normalize.css">
-    <link rel="stylesheet" href="/skeleton/css/skeleton.css">
-    <style>
-article#readme {
-  border: 1px solid #E1E1E1;
-  border-radius: 4px;
-  padding: 1em;
-}
-body {
-  background-color: #fefdfb !important;
-}
-div.updated_pkg {
-  border: 1px solid #ccc;
-  border-radius: 1em;
-  padding: .4em;
-  margin: .2em;
-  width: 40em;
-}
-div#header {
-  margin-top: 3px;
-  line-height: 4em;
-}
-div#header div a {
-  text-align: center;
-  vertical-align: middle;
-  text-decoration: none;
-  vertical-align: middle;
-}
-    </style>
-
-  </head>
-  <body>
-
-    <div class="container">
-      <div class="row" id="header" style="">
-        <div class="one column">
-          <a class="navbar-brand" href="http://nim-lang.org/">
-            <img id="nimlogo"
-                 src="/img/logo-simple.png"
-                 alt="Nim Logo"
-                 title="Go to Nim.org Website" />
-          </a>
-        </div>
-        <div class="two columns">
-          <a href="/">Main Page</a>
-        </div>
-        <div class="two columns">
-          <a href="https://github.com/nim-lang/nimble">Using Nimble</a>
-        </div>
-        <div class="seven columns">
-          <form action="/search" method="GET" role="search">
-            <input type="text" name="query" class="" placeholder="Search tags/keywords"  />
-            <button type="submit" class="submit input">Search</button>
-          </form>
-        </div>
-      </div>
-
-${content}
-
-    </div>
-  </body>
+<head>
+	<title>Nim package directory</title>
+	<link rel="shortcut icon" href="data:image/x-icon;base64,AAABAAEAEBAAAAEAIABoBAAAFgAAACgAAAAQAAAAIAAAAAEAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AAAAAAUAAAAF////AP///wD///8A////AP///wD///8A////AP///wD///8A////AAAAAAIAAABbAAAAlQAAAKIAAACbAAAAmwAAAKIAAACVAAAAWwAAAAL///8A////AP///wD///8A////AAAAABQAAADAAAAAYwAAAA3///8A////AP///wD///8AAAAADQAAAGMAAADAAAAAFP///wD///8A////AP///wAAAACdAAAAOv///wD///8A////AP///wD///8A////AP///wD///8AAAAAOgAAAJ3///8A////AP///wAAAAAnAAAAcP///wAAAAAoAAAASv///wD///8A////AP///wAAAABKAAAAKP///wAAAABwAAAAJ////wD///8AAAAAgQAAABwAAACIAAAAkAAAAJMAAACtAAAAFQAAABUAAACtAAAAkwAAAJAAAACIAAAAHAAAAIH///8A////AAAAAKQAAACrAAAAaP///wD///8AAAAARQAAANIAAADSAAAARf///wD///8AAAAAaAAAAKsAAACk////AAAAADMAAACcAAAAnQAAABj///8A////AP///wAAAAAYAAAAGP///wD///8A////AAAAABgAAACdAAAAnAAAADMAAAB1AAAAwwAAAP8AAADpAAAAsQAAAE4AAAAb////AP///wAAAAAbAAAATgAAALEAAADpAAAA/wAAAMMAAAB1AAAAtwAAAOkAAAD/AAAA/wAAAP8AAADvAAAA3gAAAN4AAADeAAAA3gAAAO8AAAD/AAAA/wAAAP8AAADpAAAAtwAAAGUAAAA/AAAA3wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAADfAAAAPwAAAGX///8A////AAAAAEgAAADtAAAAvwAAAL0AAADGAAAA7wAAAO8AAADGAAAAvQAAAL8AAADtAAAASP///wD///8A////AP///wD///8AAAAAO////wD///8A////AAAAAIcAAACH////AP///wD///8AAAAAO////wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A//8AAP//AAD4HwAA7/cAAN/7AAD//wAAoYUAAJ55AACf+QAAh+EAAAAAAADAAwAA4AcAAP5/AAD//wAA//8AAA=="/>
+	<meta charset="utf-8">
+	<meta name="description" content="">
+	<meta name="author" content="">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link href="//fonts.googleapis.com/css?family=Raleway:400,300,600" rel="stylesheet" type="text/css">
+	<link rel="stylesheet" href="/css/main.css">
+</head>
+<body class="site">
+	<header>
+		<nav class="pure-menu pure-menu-horizontal pure-menu-scrollable">
+			<div class="nav-content">
+				<a href="/" class="pure-menu-heading pure-menu-link">
+					<img class="site-logo" src="/img/logo.svg" height="30" alt="Nim">
+				</a>
+				<div class="menu-separator"></div>
+				<ul class="pure-menu-list">
+					<li class="pure-menu-item"><a href="/" class="pure-menu-link">Main Page</a></li>
+				</ul>
+			</div>
+		</nav>
+	</header>
+	<div class="site-content">
+		<section class="content">
+			${content}
+		</section>
+	</div>
+	<footer>
+		<section class="content">
+			<div class="pure-g">
+				<div class="pure-u-1 pure-u-sm-1-2 pure-u-md-1-4">
+					<h3>Documentation</h3>
+					<ul>
+						<li><a href="http://nim-lang.org/news/documentation.html">Stable Documentation</a></li>
+						<li><a href="http://nim-lang.org/news/learn.html">Learning Resources</a></li>
+						<li><a href="https://github.com/nim-lang/nim">Issues &amp; Requests</a></li>
+						<br>
+						<li><a href="{{ site.baseurl }}/documentation/">More…</a></li>
+					</ul>
+				</div>
+				<div class="pure-u-1 pure-u-sm-1-2 pure-u-md-1-4">
+					<h3>Community</h3>
+					<ul>
+						<li><a href="http://forum.nim-lang.org/">User Forum</a></li>
+						<li><a href="http://webchat.freenode.net/?channels=nim">Online IRC</a></li>
+						<li><a href="http://irclogs.nim-lang.org/">IRC Logs</a></li>
+						<br>
+						<li><a href="{{ site.baseurl }}/community/">More…</a></li>
+					</ul>
+				</div>
+			</div>
+			<div class="text-centered copyright">
+				<p>&copy; 2017 Nim developers</p>
+			</div>
+		</section>
+	</footer>
+</body>
 </html>
