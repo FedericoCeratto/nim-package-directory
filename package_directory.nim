@@ -34,7 +34,7 @@ import github,
 
 const
   template_path = "./templates"
-  timeout = 60
+  build_timeout_seconds = 10
   github_readme_tpl = "https://api.github.com/repos/$#/readme"
   github_tags_tpl = "https://api.github.com/repos/$#/tags"
   github_latest_version_tpl = "https://api.github.com/repos/$#/releases/latest"
@@ -85,7 +85,7 @@ type
   PkgBuildStatus {.pure.} = enum OK, Failed, Timeout
   PkgDocMetadata = ref object of RootObj
     fnames: strSeq
-    ready: bool
+    building: bool
     expire_time: Time
     last_commitish: string
     build_output: string
@@ -117,6 +117,7 @@ include "templates/pkg_list.tmpl"
 include "templates/doc_files_list.tmpl"
 include "templates/loader.tmpl"
 include "templates/rss.tmpl"
+include "templates/build_output.tmpl"
 
 const
   success_badge = slurp "templates/success.svg"
@@ -273,8 +274,11 @@ proc run_process(bin_path, desc, work_dir: string,
     log_debug "$# successful" % desc
     let stdout_str = p.outputStream().readAll()
     if log_output:
-      log_debug "Stdout: ---\n$#---" % stdout_str
-      log_debug "Stderr: ---\n$#---" % p.errorStream().readAll()
+      if stdout_str.len > 0:
+        log_debug "Stdout: ---\n$#---" % stdout_str
+      let stderr_str = p.errorStream().readAll()
+      if stderr_str.len > 0:
+        log_debug "Stderr: ---\n$#---" % stderr_str
     return stdout_str
 
   error "$# failed" % desc
@@ -316,48 +320,60 @@ proc fetch_using_git(pname, url: string): bool =
 
   if commitish == pkgs_doc_files[pname].last_commitish:
     pkgs_doc_files[pname].expire_time = getTime() + build_expiry_time
-    pkgs_doc_files[pname].ready = true # unlock
+    #pkgs_doc_files[pname].building = false # unlock
     log_debug "no changes to repo"
     return false
 
   return true
 
-proc fetch_and_build_pkg_using_nimble_old(pname: string): bool =
+proc fetch_and_build_pkg_using_nimble_old(pname: string) {.async.} =
+  ##
   let tmp_dir = tmp_nimble_root_dir / pname
   log_debug "Starting nimble install $# --nimbleDir=$# -y" % [pname, tmp_dir]
   let
+    t0 = epochTime()
     p = startProcess(
       nimble_binpath,
       args=["install", $pname, "--nimbleDir=$#" % tmp_dir, "-y"],
       options={poStdErrToStdOut}
     )
 
-  var exit_code = -3
-  for time_cnt in 0..timeout:
-    exit_code = p.peekExitCode()
-    if exit_code == -1:
-      sleep(200)
-      log_debug "waiting... "
-    else:
+  var build_status: PkgBuildStatus
+  while true:
+    let elapsed = epochTime() - t0
+    if elapsed > build_timeout_seconds:
+      log_debug "timed out!"
+      p.kill()
+      build_status = PkgBuildStatus.TIMEOUT
       break
 
-  let test_result =
-    case exit_code
-  of -1:
-    p.kill()
-    PkgBuildStatus.TIMEOUT
-  of 0:
-    PkgBuildStatus.OK
-  else:
-    PkgBuildStatus.Failed
+    let exit_code = p.peekExitCode()
+    case exit_code:
+    of -1:
+      # -1: still running, wait
+      await sleepAsync 500
+      log_debug "waiting build for $# $#s..." %
+        [pname, $int(elapsed)]
 
-  discard p.waitForExit()
+    of 0:
+      build_status = PkgBuildStatus.OK
+      discard p.waitForExit()
+      break
+
+    else:
+      build_status = PkgBuildStatus.Failed
+      discard p.waitForExit()
+      break
+
+  log_debug "Setting status ", build_status
+
   let output = p.outputStream().readAll()
-  log_debug output
+  if output.len > 0:
+    log_debug "Stdout: ---\n$#---" % output
 
   pkgs_doc_files[pname].build_output = output
-  pkgs_doc_files[pname].build_status = test_result
-  return true
+  pkgs_doc_files[pname].build_status = build_status
+  pkgs_doc_files[pname].expire_time = getTime() + build_expiry_time
 
 proc fetch_pkg_using_nimble(pname: string): bool =
   let pkg_install_dir = tmp_nimble_root_dir / pname
@@ -416,46 +432,65 @@ proc build_docs(pname: string): strSeq =
     result.add fname[pkg_root_dir.len..^1][1..^4] & "html"
     log_debug "adding ", fname[pkg_root_dir.len..^1][1..^4] & "html"
 
-proc fetch_and_build_pkg_if_needed(pname: string) =
+proc fetch_and_build_pkg_if_needed(pname: string) {.async.} =
   ## Fetch package and build docs
   ## Modifies pkgs_doc_files
 
-  # PkgDocMetadata state machine: nothing -> building <-> ready
+  # PkgDocMetadata state machine: nothing -> building:true <-> building:false
   if not pkgs_doc_files.hasKey(pname):
     let pm = PkgDocMetadata(
       expire_time: getTime(),
       fnames: @[],
-      ready: true,
+      building: true,
       )
     pkgs_doc_files[pname] = pm
 
   # Wait on any existing pkg building task
-  while pkgs_doc_files[pname].ready == false:
-    log_debug "waiting build..."
-    sleep 200
+  let t0 = epochTime()
+  while pkgs_doc_files[pname].building == true:
+    let elapsed = epochTime() - t0
+    if elapsed > build_timeout_seconds:
+      log_debug "timed out!"
+      break
+    log_debug "waiting already running build for $# $#s..." % [pname, $int(elapsed)]
+    await sleepAsync 500
 
   # Fetch or update pkg
   let url = pkgs[pname]["url"].str
   if pkgs_doc_files[pname].expire_time > getTime():
     return
 
-  pkgs_doc_files[pname].ready = false # lock
-
   #if fetch_using_git(pname, url) == false:
   #if fetch_pkg_using_nimble(pname) == false:
-  if fetch_and_build_pkg_using_nimble_old(pname) == false:
-    pkgs_doc_files[pname].expire_time = getTime() + build_expiry_time
+
+  pkgs_doc_files[pname].building = true # lock
+  await fetch_and_build_pkg_using_nimble_old(pname)
+  pkgs_doc_files[pname].building = false # unlock
+
+  if pkgs_doc_files[pname].build_status != PkgBuildStatus.OK:
+    log_debug "fetch_and_build_pkg_if_needed failed - skipping doc generation"
     return
 
   let fnames = build_docs(pname)
   log_debug "Generated $# html files" % $fnames.len
   pkgs_doc_files[pname].fnames = fnames
 
-  pkgs_doc_files[pname].expire_time = getTime() + build_expiry_time
   #pkgs_doc_files[pname].last_commitish = commitish
   pkgs_doc_files[pname].version = pkgs[pname]["github_latest_version"].str
-  pkgs_doc_files[pname].ready = true # unlock
 
+proc translate_term_colors*(outp: string): string =
+  ## Translate terminal colors
+  const sequences = @[
+    ("[32m[1m", """<span class="success">"""),
+    ("[33m[1m", """<span class="red">"""),
+    ("[36m[1m", """<span class="blue">"""),
+    ("[0m[32m[0m", "</span>"),
+    ("[0m[33m[0m", "</span>"),
+    ("[0m[36m[0m", "</span>"),
+  ]
+  result = outp
+  for s in sequences:
+    result = result.replace(s[0], s[1])
 
 
 # Jester settings
@@ -478,7 +513,6 @@ routes:
       pkgs_list.add pkgs[pn]
 
     resp base_page(generate_pkg_list_page(pkgs_list))
-
 
   get "/pkg/@pkg_name/?":
     let pname = normalize(@"pkg_name")
@@ -577,7 +611,7 @@ routes:
     let pkg = pkgs[pname]
 
     # Check out pkg and build docs. Modifies pkgs_doc_files
-    fetch_and_build_pkg_if_needed(pname)
+    await fetch_and_build_pkg_if_needed(pname)
 
     # Show files summary
     resp base_page(
@@ -593,13 +627,22 @@ routes:
     let pkg = pkgs[pname]
 
     # Check out pkg and build docs. Modifies pkgs_doc_files
-    fetch_and_build_pkg_if_needed(pname)
+    await fetch_and_build_pkg_if_needed(pname)
 
-    let pkg_root_dir = locate_pkg_root_dir(pname)
+    let pkg_root_dir =
+      try:
+        locate_pkg_root_dir(pname)
+      except:
+        halt
+        ""
 
     # Horrible hack
     let messy_path = @"a" / @"b" / @"c" / @"d"
     let doc_path = strip(messy_path, true, true, {'/'})
+
+    if not doc_path.endswith(".html"):
+      log_debug "Refusing to serve doc path $# $#" % [pname, doc_path]
+      halt
 
     log_debug "Attempting to serve doc path $# $#" % [pname, doc_path]
 
@@ -667,7 +710,7 @@ routes:
   get "/ci/badges/@pkg_name/version.svg":
     ## Version badge
     let pname = normalize(@"pkg_name")
-    fetch_and_build_pkg_if_needed(pname)
+    await fetch_and_build_pkg_if_needed(pname)
     let md =
       try:
         pkgs_doc_files[pname]
@@ -681,27 +724,30 @@ routes:
   get "/ci/badges/@pkg_name/nimdevel/status.svg":
     ## Status badge
     let pname = normalize(@"pkg_name")
-    fetch_and_build_pkg_if_needed(pname)
+    await fetch_and_build_pkg_if_needed(pname)
     let md =
       try:
         pkgs_doc_files[pname]
       except KeyError:
         halt
         nil
-    case md.build_status
-    of PkgBuildStatus.OK:
-      resp(success_badge, contentType = "image/svg+xml")
-    of PkgBuildStatus.Failed:
-      resp(fail_badge, contentType = "image/svg+xml")
-    of PkgBuildStatus.Timeout:
-      resp(fail_badge, contentType = "image/svg+xml")
+    let badge =
+      case md.build_status
+      of PkgBuildStatus.OK:
+        success_badge
+      of PkgBuildStatus.Failed:
+        fail_badge
+      of PkgBuildStatus.Timeout:
+        fail_badge
+    resp(badge, contentType = "image/svg+xml")
 
   get "/ci/badges/@pkg_name/nimdevel/output.html":
     ## Build output
     let pname = normalize(@"pkg_name")
     try:
       let outp = pkgs_doc_files[pname].build_output
-      resp base_page(pre(outp))
+      let build_output = translate_term_colors(outp)
+      resp base_page(generate_build_output_page(pname, build_output))
     except KeyError:
       halt
 

@@ -1,0 +1,12 @@
+#? stdtmpl | standard
+#proc generate_build_output_page(pname, build_output: string): string =
+#  result = ""
+	<br/>
+	<style>
+		span.blue { color: #6060ff; }
+		span.red { color: #ff6000; }
+		span.success { color: #60ff60; }
+    span#build_output { padding: 1em; }
+	</style>
+  <p>Build output from <a href="/pkg/${pname}">${pname}</a></p>
+  <pre id="build_output">${build_output}</pre>
