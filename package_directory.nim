@@ -87,6 +87,7 @@ type
   PkgDocMetadata = ref object of RootObj
     fnames: strSeq
     building: bool
+    build_time: Time
     expire_time: Time
     last_commitish: string
     build_output: string
@@ -243,7 +244,7 @@ proc search_packages*(query: string): CountTable[string] =
 
 proc fetch_github_readme*(pkg: Pkg, owner_repo_name: string) =
   ## Fetch README.* from GitHub
-  log_debug "fetching ", github_readme_tpl % owner_repo_name
+  log_debug "fetching GH readme ", github_readme_tpl % owner_repo_name
   try:
     let readme = getContent(github_readme_tpl % owner_repo_name,
     extraHeaders=github_readme_header & github_token)
@@ -252,23 +253,6 @@ proc fetch_github_readme*(pkg: Pkg, owner_repo_name: string) =
     log_debug "failed to fetch GH readme"
     log_debug getCurrentExceptionMsg()
     pkg["github_readme"] = newJString ""
-
-proc fetch_github_latest_version_data(pkg: Pkg, owner_repo_name: string) =
-  ## Fetch version data from GitHub
-  log_debug "fetching ", github_latest_version_tpl % owner_repo_name
-  try:
-    let latest_version = getContent(github_latest_version_tpl % owner_repo_name,
-      extraHeaders=github_token).parseJson
-    var latest_version_name = latest_version["name"].str
-    if latest_version_name.startsWith("v"):
-      latest_version_name = latest_version_name[1..^0]
-    pkg["github_latest_version"] = newJString latest_version_name
-    pkg["github_latest_version_url"] = newJString latest_version["tarball_url"].str
-    pkg["github_latest_version_time"] = newJString latest_version["published_at"].str
-  except:
-    pkg["github_latest_version"] = newJString "none"
-    pkg["github_latest_version_url"] = newJString ""
-    pkg["github_latest_version_time"] = newJString ""
 
 proc fetch_github_doc_pages(pkg: Pkg, owner, repo_name: string) =
   ## Fetch documentation pages from GitHub
@@ -313,20 +297,58 @@ proc run_process(bin_path, desc, work_dir: string,
   raise newException(ProcessError, "$# failed" % desc)
 
 proc fetch_github_versions(pkg: Pkg, owner_repo_name: string) =
-  ## Fetch versions from GH
+  ## Fetch versions from GH from releases and tags
+  ## Set github_versions, github_latest_version, github_latest_version_url
+  log_debug "fetching GH tags ", github_tags_tpl % owner_repo_name
   var version_names = newJArray()
-  log_debug "fetching ", github_tags_tpl % owner_repo_name
-  let tags = getContent(github_tags_tpl % owner_repo_name,
-  extraHeaders=github_token).parseJson
-  for t in tags:
-    var name = t["name"].str
-    if name.startsWith("v"):
-      name = name[1..^0]
-    if name.len > 0:
-      version_names.add newJString name
+  try:
+    let tags = getContent(github_tags_tpl % owner_repo_name,
+    extraHeaders=github_token).parseJson
+    for t in tags:
+      var name = t["name"].str
+      if name.startsWith("v"):
+        name = name[1..^0]
+      if name.len > 0:
+        version_names.add newJString name
+  except:
+    log_info getCurrentExceptionMsg()
+    pkg["github_versions"] = version_names
+    pkg["github_latest_version"] = newJString "none"
+    pkg["github_latest_version_url"] = newJString ""
+    return
 
   pkg["github_versions"] = version_names
   log_debug "fetched $# GH versions" % $len(version_names)
+
+  log_debug "fetching GH latest vers ", github_latest_version_tpl % owner_repo_name
+  try:
+    let latest_version = getContent(github_latest_version_tpl % owner_repo_name,
+      extraHeaders=github_token).parseJson
+    var latest_version_name = latest_version["name"].str
+    if latest_version_name.startsWith("v"):
+      latest_version_name = latest_version_name[1..^0]
+    pkg["github_latest_version"] = newJString latest_version_name
+    pkg["github_latest_version_url"] = newJString latest_version["tarball_url"].str
+    pkg["github_latest_version_time"] = newJString latest_version["published_at"].str
+  except:
+    log_debug getCurrentExceptionMsg()
+    log_debug "No releases - falling back to tags"
+    var latest = "0"
+    for v in version_names:
+      if v.str > latest:
+        latest = v.str
+
+    if latest == "0":
+      pkg["github_latest_version"] = newJString "none"
+      pkg["github_latest_version_url"] = newJString ""
+    else:
+      pkg["github_latest_version"] = newJString latest
+      pkg["github_latest_version_url"] = newJString(
+        "https://github.com/$#/archive/v$#.tar.gz" % [owner_repo_name, latest]
+      )
+
+    pkg["github_latest_version_time"] = newJString ""
+
 
 
 proc fetch_using_git(pname, url: string): bool =
@@ -359,8 +381,8 @@ proc fetch_and_build_pkg_using_nimble_old(pname: string) {.async.} =
   let
     t0 = epochTime()
     p = startProcess(
-      nimble_binpath,
-      args=["install", $pname, "--nimbleDir=$#" % tmp_dir, "-y"],
+      nimble_bin_path,
+      args=["install", $pname, "--nimbleDir=$#" % tmp_dir, "-y", "--debug"],
       options={poStdErrToStdOut}
     )
 
@@ -399,9 +421,11 @@ proc fetch_and_build_pkg_using_nimble_old(pname: string) {.async.} =
 
   pkgs_doc_files[pname].build_output = output
   pkgs_doc_files[pname].build_status = build_status
+  pkgs_doc_files[pname].build_time = getTime()
   pkgs_doc_files[pname].expire_time = getTime() + build_expiry_time
 
 proc fetch_pkg_using_nimble(pname: string): bool =
+  ## UNUSED
   let pkg_install_dir = tmp_nimble_root_dir / pname
 
   var outp = run_process(nimble_bin_path, "nimble update",
@@ -434,16 +458,21 @@ proc locate_pkg_root_dir(pname: string): string =
   # Full path example:
   # /dev/shm/nim_package_dir/nimgame2/pkgs/nimgame2-0.1.0
   let pkgs_dir = tmp_nimble_root_dir / pname / "pkgs"
+  log_debug "scanning dir $#" % pkgs_dir
   for kind, path in walkDir(pkgs_dir, relative=true):
-    if path.startswith(pname & "-"):  # fixme: better heuristic
-      result = pkgs_dir / path
-      log_debug "Found pkg root: ", result
-      return
+    log_debug "scanning $#" % path
+    # FIXME: better heuristic
+    if path.contains('-'):
+      let chunks = path.split('-', maxsplit=1)
+      if chunks[0].normalize() == pname:
+        result = pkgs_dir / path
+        log_debug "Found pkg root: ", result
+        return
 
   raise newException(Exception, "Root dir for $# not found" % pname)
 
 proc build_docs(pname: string): strSeq =
-  ##
+  ## Build docs
   result = @[]
   let pkg_root_dir = locate_pkg_root_dir(pname)
   log_debug "Walking ", pkg_root_dir
@@ -463,28 +492,39 @@ proc fetch_and_build_pkg_if_needed(pname: string) {.async.} =
   ## Modifies pkgs_doc_files
 
   # PkgDocMetadata state machine: nothing -> building:true <-> building:false
-  if not pkgs_doc_files.hasKey(pname):
+  if pkgs_doc_files.hasKey(pname):
+
+    if pkgs_doc_files[pname].expire_time > getTime():
+      # No need to rebuild yet
+      return
+
+    # Wait on any existing pkg building task to finish
+    let t0 = epochTime()
+    while pkgs_doc_files[pname].building == true:
+      let elapsed = epochTime() - t0
+      if elapsed > build_timeout_seconds:
+        log_debug "timed out!"
+        break
+      log_debug "waiting already running build for $# $#s..." % [pname, $int(elapsed)]
+      await sleepAsync 500
+
+    if pkgs_doc_files[pname].expire_time > getTime():
+      # No need to rebuild yet
+      return
+
+  else:
+    # The package has never been built before: start first build
     let pm = PkgDocMetadata(
-      expire_time: getTime(),
+      build_time: getTime(),
+      expire_time: getTime() + build_expiry_time,
       fnames: @[],
       building: true,
       )
     pkgs_doc_files[pname] = pm
 
-  # Wait on any existing pkg building task
-  let t0 = epochTime()
-  while pkgs_doc_files[pname].building == true:
-    let elapsed = epochTime() - t0
-    if elapsed > build_timeout_seconds:
-      log_debug "timed out!"
-      break
-    log_debug "waiting already running build for $# $#s..." % [pname, $int(elapsed)]
-    await sleepAsync 500
 
   # Fetch or update pkg
   let url = pkgs[pname]["url"].str
-  if pkgs_doc_files[pname].expire_time > getTime():
-    return
 
   #if fetch_using_git(pname, url) == false:
   #if fetch_pkg_using_nimble(pname) == false:
@@ -511,12 +551,15 @@ proc fetch_and_build_pkg_if_needed(pname: string) {.async.} =
 proc translate_term_colors*(outp: string): string =
   ## Translate terminal colors
   const sequences = @[
+    ("[36m[2m", "<span>"),
     ("[32m[1m", """<span class="success">"""),
     ("[33m[1m", """<span class="red">"""),
     ("[36m[1m", """<span class="blue">"""),
     ("[0m[32m[0m", "</span>"),
     ("[0m[33m[0m", "</span>"),
     ("[0m[36m[0m", "</span>"),
+    ("[2m", "<span>"),
+    ("[36m", "<span>"),
   ]
   result = outp
   for s in sequences:
@@ -584,10 +627,11 @@ routes:
         pkg["github_last_update_time"] = newJInt epochTime().int
         let owner = url.split('/')[3]
         let repo_name = url.split('/')[4]
-        let owner_repo_name = "$#/$#" % url.split('/')[3..4]
+        var owner_repo_name = "$#/$#" % url.split('/')[3..4]
+        if owner_repo_name.endswith(".git"):
+          owner_repo_name = owner_repo_name[0..^5]
         pkg["github_owner"] = newJString owner
         pkg.fetch_github_readme(owner_repo_name)
-        pkg.fetch_github_latest_version_data(owner_repo_name)
         pkg.fetch_github_versions(owner_repo_name)
         pkg.fetch_github_doc_pages(owner, repo_name)
 
@@ -781,15 +825,15 @@ routes:
 
     most_queried_packages.inc pname
     await fetch_and_build_pkg_if_needed(pname)
-    let md =
-      try:
-        pkgs_doc_files[pname]
-      except KeyError:
-        halt
-        nil
-    let version = md.version
-    let badge = version_badge_tpl % [version, version]
-    resp(badge, contentType = "image/svg+xml")
+    try:
+      let md = pkgs_doc_files[pname]
+      let version = md.version
+      let badge = version_badge_tpl % [version, version]
+      resp(badge, contentType = "image/svg+xml")
+    except:
+      log_debug getCurrentExceptionMsg()
+      let badge = version_badge_tpl % ["none", "none"]
+      resp(badge, contentType = "image/svg+xml")
 
   get "/ci/badges/@pkg_name/nimdevel/status.svg":
     ## Status badge
@@ -822,10 +866,16 @@ routes:
       resp base_page "Package not found"
 
     most_queried_packages.inc pname
+    await fetch_and_build_pkg_if_needed(pname)
     try:
       let outp = pkgs_doc_files[pname].build_output
       let build_output = translate_term_colors(outp)
-      resp base_page(generate_build_output_page(pname, build_output))
+      resp base_page(generate_build_output_page(
+        pname,
+        build_output,
+        pkgs_doc_files[pname].build_time,
+        pkgs_doc_files[pname].expire_time,
+      ))
     except KeyError:
       halt
 

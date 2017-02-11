@@ -2,6 +2,13 @@
 #proc generate_pkg_page(pkg: Pkg): string =
 #  result = ""
 
+<style>
+  table#pkg_summary tr th {
+    font-weight: normal;
+    width: 10em;
+  }
+</style>
+
 <article class="package">
     <h1 class="text-centered page-title main-heading package__name">${pkg["name"].str}</h1>
     <p class="package__description muted">${pkg["description"].str}</p>
@@ -36,11 +43,11 @@
             </ul>
         </div>
         <div class="pure-u-1 pure-u-md-1-3">
-            <table class="pure-table pure-table-horizontal table--word-break">
+            <table class="pure-table pure-table-horizontal table--word-break" id="pkg_summary">
                 <tbody>
                     #if pkg.has_key("github_owner"):
                     <tr>
-                        <td>Maintainer</td>
+                        <th>Maintainer</th>
                         <td>
                             <a href="https://github.com/${pkg["github_owner"].str}"> ${pkg["github_owner"].str}</a>
                         </td>
@@ -49,13 +56,13 @@
 
                     #if pkg.has_key("web"):
                     <tr>
-                        <td>Website</td>
+                        <th>Website</th>
                         <td><a href="${pkg["web"].str}">${pkg["web"].str}</a></td>
                     </tr>
 
                     #if pkg.has_key("github_versions"):
                     <tr class="Versions">
-                        <td>Versions</td>
+                        <th>Versions</th>
                         <td>
 #for ver in pkg["github_versions"]:
     ${ver.str}
@@ -65,7 +72,7 @@
                     #end if
 
                     <tr class="version">
-                        <td>Latest version</td>
+                        <th>Latest version</th>
                         <td>
                             <a href="/ci/badges/${pkg["name"].str}/nimdevel/output.html">
                                 <img src="/ci/badges/${pkg["name"].str}/version.svg" alt="badge">
@@ -75,12 +82,12 @@
                     #end if
 
                     <tr class="license">
-                        <td>License</td>
+                        <th>License</th>
                         <td>${pkg["license"].str}</td>
                     </tr>
 
                     <tr class="tags">
-                        <td>Tags</td>
+                        <th>Tags</th>
                         <td>
 #for tag in pkg["tags"]:
     <a href="/search?query=$tag.str">$tag.str</a>
@@ -89,7 +96,7 @@
                     </tr>
 
                     <tr class="license">
-                        <td>CI</td>
+                        <th>CI</th>
                         <td id="ci">
                             <a href="/ci/badges/${pkg["name"].str}/nimdevel/output.html">
                                 <img src="/ci/badges/${pkg["name"].str}/nimdevel/status.svg">
