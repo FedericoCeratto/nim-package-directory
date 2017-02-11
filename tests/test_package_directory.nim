@@ -1,5 +1,6 @@
 
 import unittest,
+  sequtils,
   strutils,
   tables
 
@@ -31,3 +32,13 @@ suite "test pkgs":
     let o = translate_term_colors nimble_install_output
     assert o.contains("m[") == false
     assert o.contains("[0m") == false
+
+  test "CountTable sorted":
+    var a = initCountTable[string]()
+    a.inc("B", 2)
+    a.inc("A", 3)
+    a.inc("C", 1)
+    let b = sorted(a)
+    assert b.smallest() == ("C", 1)
+    assert toSeq(b.keys()) == @["A", "B", "C"]
+    assert toSeq(b.values()) == @[3, 2, 1]

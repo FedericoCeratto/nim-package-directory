@@ -5,8 +5,6 @@
 # Released under GPLv3 License, see LICENSE file
 #
 
-from algorithm import sort, sorted, sortedByIt
-from times import epochTime
 import asyncdispatch,
  httpclient,
  httpcore,
@@ -21,7 +19,10 @@ import asyncdispatch,
  tables,
  times
 
-from htmlgen import pre
+from algorithm import sort, sorted, sortedByIt
+from marshal import store, load
+from posix import onSignal, SIGINT, SIGTERM
+from times import epochTime
 
 #from nimblepkg import getTagsListRemote, getVersionList
 import jester
@@ -41,7 +42,8 @@ const
   github_doc_index_tpl = "https://$#.github.io/$#/index.html"
   github_readme_header = "Accept:application/vnd.github.v3.html\c\L"
   github_caching_time = 600
-  #github_caching_time = 2 #FIXME
+  github_packages_json_raw_url= "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json"
+  github_packages_json_polling_time_s = 10 * 60
   git_bin_path = "/usr/bin/git"
   nim_bin_path = "/usr/bin/nim"
   nimble_bin_path = "/usr/bin/nimble"
@@ -51,22 +53,19 @@ const
 
 # init
 
-let conf = parseFile("conf.json")
-let github_token = "Authorization: token $#\c\L" % conf["github_token"].str
-let packages_list_fname = conf["packages_list_fname"].str
-var port = if conf.has_key("port"): conf["port"].getNum.Port else: 5000.Port
+let conf = load_conf()
+let github_token = "Authorization: token $#\c\L" % conf.github_token
 
 # parse CLI opts
 
-for kind, key, val in getopt():
-  case kind
-  of cmdShortOption:
-    case key
-    of "p": port = val.parseInt.Port
-  else: discard
+#for kind, key, val in getopt():
+#  case kind
+#  of cmdShortOption:
+#    case key
+#    of "p": conf.port = val.parseInt.Port
+#  else: discard
 
-
-let fl = newFileLogger(conf["log_fname"].str, fmtStr = "$datetime $levelname ")
+let fl = newFileLogger(conf.log_fname, fmtStr = "$datetime $levelname ")
 fl.addHandler
 
 proc log_debug(args: varargs[string, `$`]) =
@@ -76,6 +75,8 @@ proc log_debug(args: varargs[string, `$`]) =
 proc log_info(args: varargs[string, `$`]) =
   info args
   fl.file.flushFile()
+
+log_debug conf
 
 type
   ProcessError = object of Exception
@@ -91,16 +92,10 @@ type
     build_output: string
     build_status: PkgBuildStatus
     version: string
-  Cache = object of RootObj
-    # package creation/update history - new ones at bottom
-    pkgs_history: seq[string]
-    # pkgs list. Extra data from GH is embedded
-    pkgs: TableRef[string, Pkg]
 
   RssItem = tuple
     title, desc, url, guid, pubDate: string
 
-var cache: Cache
 # the pkg name is normalized
 var pkgs = newTable[string, Pkg]()
 var pkgs_doc_files = newTable[string, PkgDocMetadata]()
@@ -109,6 +104,44 @@ var pkgs_doc_files = newTable[string, PkgDocMetadata]()
 var packages_by_tag = newTable[string, seq[string]]()
 # word -> package name
 var packages_by_description_word = newTable[string, seq[string]]()
+
+# package access statistics
+var most_queried_packages = initCountTable[string]()
+
+
+# disk-persisted cache
+
+type
+  Cache = object of RootObj
+    # package creation/update history - new ones at bottom
+    pkgs_history: seq[string]
+    # pkgs list. Extra data from GH is embedded
+    #pkgs: TableRef[string, Pkg]
+
+var cache: Cache
+
+proc save(cache: Cache) =
+  store(newFileStream(cache_fn, fmWrite), cache)
+
+proc load_cache(): Cache =
+  ## Load cache from disk or create empty cache
+  log_debug "loading cache at $#" % cache_fn
+  try:
+    # FIXME
+    #result.pkgs = newTable[string, Pkg]()
+    result.pkgs_history = @[]
+    load(newFileStream(cache_fn, fmRead), result)
+    log_debug "cache loaded"
+  except:
+    # init cache
+    #result.pkgs = newTable[string, Pkg]()
+    result.pkgs_history = @[]
+    result.save()
+    log_debug "new cache created"
+
+
+
+# HTML templates
 
 include "templates/base.tmpl"
 include "templates/home.tmpl"
@@ -132,27 +165,13 @@ const
 #     ctx.add_rule(Allow, sc)
 #   ctx.load()
 
-from marshal import store, load
-from posix import onSignal, SIGINT, SIGTERM
-
-proc save_cache() =
-  store(newFileStream(cache_fn, fmWrite), cache)
-
-proc load_cache() =
-  try:
-    load(newFileStream(cache_fn, fmRead), cache)
-  except:
-    # init cache
-    cache.pkgs = newTable[string, Pkg]()
-    cache.pkgs_history = @[]
-    save_cache()
 
 proc load_packages*() =
   ## Load packages.json
   ## Rebuild packages_by_tag, packages_by_description_word
-  log_debug "loading $#" % packages_list_fname
+  log_debug "loading $#" % conf.packages_list_fname
   pkgs.clear()
-  let pkg_list = packages_list_fname.parseFile
+  let pkg_list = conf.packages_list_fname.parseFile
   for pdata in pkg_list:
     if not pdata.hasKey("name"):
       continue
@@ -179,8 +198,10 @@ proc load_packages*() =
         packages_by_description_word[word] = @[]
       packages_by_description_word[word].add pdata["name"].str
 
-
   log_info "Loaded ", $pkgs.len, " packages"
+
+  log_debug "writing $#" % conf.packages_list_fname
+  conf.packages_list_fname.writeFile(conf.packages_list_fname.readFile)
 
 
 proc cleanupWhitespace(s: string): string
@@ -191,7 +212,7 @@ proc save_packages() =
   for pname in toSeq(pkgs.keys()).sorted(system.cmp):
     new_pkgs.add pkgs[pname]
 
-  packages_list_fname.writeFile(new_pkgs.pretty.cleanupWhitespace)
+  conf.packages_list_fname.writeFile(new_pkgs.pretty.cleanupWhitespace)
 
 proc search_packages*(query: string): CountTable[string] =
   ## Search packages by name, tag and keyword
@@ -255,6 +276,11 @@ proc fetch_github_doc_pages(pkg: Pkg, owner, repo_name: string) =
   log_debug "Checking ", url
   if get(url).status.startsWith("200"):
     pkg["doc"] = newJString url
+
+proc fetch_github_packages_json(): string =
+  ## Fetch packages.json from GitHub
+  log_debug "fetching ", github_packages_json_raw_url
+  return getContent(github_packages_json_raw_url)
 
 proc `+`(t1, t2: Time): Time {.borrow.}
 
@@ -476,7 +502,11 @@ proc fetch_and_build_pkg_if_needed(pname: string) {.async.} =
   pkgs_doc_files[pname].fnames = fnames
 
   #pkgs_doc_files[pname].last_commitish = commitish
-  pkgs_doc_files[pname].version = pkgs[pname]["github_latest_version"].str
+  if pkgs[pname].hasKey("github_latest_version"):
+    pkgs_doc_files[pname].version = pkgs[pname]["github_latest_version"].str
+  else:
+    log_debug "FIXME github_latest_version"
+    pkgs_doc_files[pname].version = "unknown"
 
 proc translate_term_colors*(outp: string): string =
   ## Translate terminal colors
@@ -492,18 +522,41 @@ proc translate_term_colors*(outp: string): string =
   for s in sequences:
     result = result.replace(s[0], s[1])
 
+proc sorted*[T](t: CountTable[T]): CountTable[T] =
+  ## Return sorted CountTable
+  var tcopy = t
+  tcopy.sort()
+  tcopy
+
+proc top_keys*[T](t: CountTable[T], n: int): seq[T] =
+  ## Return CountTable most common keys
+  result = @[]
+  var tcopy = t
+  tcopy.sort()
+  for k in keys(tcopy):
+    result.add k
+    if result.len == n:
+      return
+
 
 # Jester settings
 
 settings:
-    port = port
+    port = conf.port
 
 # routes
 
 routes:
 
   get "/":
-    resp base_page(generate_home_page())
+    try:
+      let top_pkg_names = top_keys(most_queried_packages, 5)
+      log_debug "pkgs history len: $#" % $cache.pkgs_history.len
+      let new_pkg_names = cache.pkgs_history[0..min(5, cache.pkgs_history.high)]
+      resp base_page(generate_home_page(top_pkg_names, new_pkg_names))
+    except:
+      error getCurrentExceptionMsg()
+      halt
 
   get "/search":
     let found_pkg_names = search_packages(@"query")
@@ -516,9 +569,10 @@ routes:
 
   get "/pkg/@pkg_name/?":
     let pname = normalize(@"pkg_name")
-    if not pkgs.has_key(pname):
+    if not pkgs.hasKey(pname):
       resp base_page "Package not found"
 
+    most_queried_packages.inc pname
     let
       pkg = pkgs[pname]
       url = pkg["url"].str
@@ -601,13 +655,15 @@ routes:
 
   get "/packages.json":
     ## Serve the packages list file
-    resp packages_list_fname.readFile
+    resp conf.packages_list_fname.readFile
 
   get "/docs/@pkg_name/?":
     ## Serve hosted docs for a package: summary page
     let pname = normalize(@"pkg_name")
     if not pkgs.hasKey(pname):
       resp base_page("<p>Package not found</p>")
+
+    most_queried_packages.inc pname
     let pkg = pkgs[pname]
 
     # Check out pkg and build docs. Modifies pkgs_doc_files
@@ -624,6 +680,8 @@ routes:
     let pname = normalize(@"pkg_name")
     if not pkgs.hasKey(pname):
       resp base_page("<p>Package not found</p>")
+
+    most_queried_packages.inc pname
     let pkg = pkgs[pname]
 
     # Check out pkg and build docs. Modifies pkgs_doc_files
@@ -665,8 +723,6 @@ routes:
     let page = head & fn.readFile()
     resp base_page(page)
 
-
-
   get "/loader":
     resp base_page(
       generate_loader_page()
@@ -674,19 +730,28 @@ routes:
 
   get "/packages.xml":
     ## New and updated packages feed
+    let baseurl = conf.public_baseurl
+    let url = baseurl / "packages.xml"
+
     var rss_items: seq[RssItem] = @[]
-    for pn in cache.pkgs_history:
+    for pname in cache.pkgs_history:
+      let pn = pname.normalize()
+      if not pkgs.hasKey(pn):
+        log_debug "skipping $#" % pn
+        continue
+
       let pkg = pkgs[pn]
-      let i:RssItem = (pn, pkg["description"].str, "", "FIXME", "")
+      let item_url = baseurl / "pkgs" / pn
+      let i:RssItem = (pn, pkg["description"].str, "", item_url, "")
       rss_items.add i
 
     let r = generate_rss_feed(
-      "Nim packages",
-      "New and updated Nim packages",
-      "FIXME",
-      "FIXME",
-      "FIXME",
-      3600,
+      title="Nim packages",
+      desc="New and updated Nim packages",
+      url=url,
+      build_date="",
+      pub_date="",
+      ttl=3600,
       rss_items
     )
     resp(r, contentType="application/rss+xml")
@@ -694,7 +759,8 @@ routes:
   get "/stats":
     resp base_page """
     <p>Runtime: $#</p>
-    """ % [$cpuTime()]
+    <p>Queried packages count: $#</p>
+    """ % [$cpuTime(), $len(most_queried_packages)]
 
   # CI Routing
 
@@ -710,6 +776,10 @@ routes:
   get "/ci/badges/@pkg_name/version.svg":
     ## Version badge
     let pname = normalize(@"pkg_name")
+    if not pkgs.hasKey(pname):
+      resp base_page "Package not found"
+
+    most_queried_packages.inc pname
     await fetch_and_build_pkg_if_needed(pname)
     let md =
       try:
@@ -724,6 +794,10 @@ routes:
   get "/ci/badges/@pkg_name/nimdevel/status.svg":
     ## Status badge
     let pname = normalize(@"pkg_name")
+    if not pkgs.hasKey(pname):
+      resp base_page "Package not found"
+
+    most_queried_packages.inc pname
     await fetch_and_build_pkg_if_needed(pname)
     let md =
       try:
@@ -744,6 +818,10 @@ routes:
   get "/ci/badges/@pkg_name/nimdevel/output.html":
     ## Build output
     let pname = normalize(@"pkg_name")
+    if not pkgs.hasKey(pname):
+      resp base_page "Package not found"
+
+    most_queried_packages.inc pname
     try:
       let outp = pkgs_doc_files[pname].build_output
       let build_output = translate_term_colors(outp)
@@ -881,13 +959,48 @@ proc start_nim_commit_polling(poll_time: TimeInterval) {.async.} =
     await sleepAsync(poll_time.milliseconds)
     #FIXME asyncCheck
 
+proc run_github_packages_json_polling(poll_time_s: int) {.async.} =
+  ## Poll GH for packages.json
+  ## Overwrite packages.json local file!
+  log_debug "starting GH packages.json polling"
+  while true:
+    await sleepAsync poll_time_s * 1000
+    log_debug "Polling GitHub packages.json"
+    try:
+      let new_pkg_raw = fetch_github_packages_json()
+      if new_pkg_raw == conf.packages_list_fname.readFile:
+        log_debug "No changes"
+        continue
+
+      for pdata in new_pkg_raw.parseJson:
+        if pdata.hasKey("name"):
+          let pname = pdata["name"].str.normalize()
+          if not pkgs.hasKey(pname):
+            cache.pkgs_history.add pname
+            log_debug "New pkg added on GH: $#" % pname
+
+      cache.save()
+      log_debug "writing $#" % conf.packages_list_fname
+      conf.packages_list_fname.writeFile(new_pkg_raw)
+      load_packages()
+
+      for rawname in cache.pkgs_history:
+        let pname = rawname.normalize()
+        if not pkgs.hasKey(pname):
+          log_debug "$# is gone" % pname
+
+    except:
+      error getCurrentExceptionMsg()
+
+
 
 
 
 onSignal(SIGINT, SIGTERM):
+  ## Exit signal handler
   info "Exiting"
-  save_cache()
-  save_packages()
+  cache.save()
+  #save_packages()
   quit()
 
 proc main() =
@@ -895,12 +1008,11 @@ proc main() =
   log_info "starting"
   tmp_nimble_root_dir.createDir()
   load_packages()
-  load_cache()
+  cache = load_cache()
   #asyncCheck start_nim_commit_polling(github_nim_commit_polling_time)
-  #FIXME
-  cache.pkgs_history = @["jester", "libsodium", "aporia"]
+  asyncCheck run_github_packages_json_polling(github_packages_json_polling_time_s)
 
-  info "Starting"
+  log_info "starting loop"
   runForever()
 
 when isMainModule:

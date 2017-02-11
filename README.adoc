@@ -6,8 +6,8 @@
 - [x] Display GitHub readme
 - [ ] Display GitLab readme
 - [ ] Display BitBucket readme
-- [ ] Fetch & install packages, serve badges
-- [ ] Build and serve pkg docs
+- [x] Fetch & install packages, serve badges
+- [x] Build and serve pkg docs
 - [ ] Pkg metadata signing
-- [ ] Pkgs RSS / web feed
+- [x] Pkgs RSS / web feed
 - [ ] Search selectors
