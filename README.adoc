@@ -1,6 +1,8 @@
 
 === Nim package directory
 
+Currently running at https://nimble.directory
+
 .Features:
 - [x] Package search
 - [x] Display GitHub readme
