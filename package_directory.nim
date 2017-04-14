@@ -21,11 +21,12 @@ import asyncdispatch,
 
 from algorithm import sort, sorted, sortedByIt
 from marshal import store, load
-from posix import onSignal, SIGINT, SIGTERM
+from posix import onSignal, SIGINT, SIGTERM, getpid
 from times import epochTime
 
 #from nimblepkg import getTagsListRemote, getVersionList
-import jester
+import jester,
+  sdnotify
 
 import github,
   signatures,
@@ -45,6 +46,7 @@ const
   github_packages_json_raw_url= "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json"
   github_packages_json_polling_time_s = 10 * 60
   git_bin_path = "/usr/bin/git"
+  sdnotify_ping_time_s = 15
   nim_bin_path = "/usr/bin/nim"
   nimble_bin_path = "/usr/bin/nimble"
   tmp_nimble_root_dir = "/dev/shm/nim_package_dir"
@@ -76,6 +78,11 @@ proc log_info(args: varargs[string, `$`]) =
   info args
   fl.file.flushFile()
 
+proc log(request: Request) =
+  ## Log request data
+  #log_info "serving $# $# $#" % [request.ip, $request.reqMeth, request.path]
+  discard
+
 log_debug conf
 
 type
@@ -94,7 +101,7 @@ type
     build_status: PkgBuildStatus
     version: string
 
-  RssItem = tuple
+  RssItem = object
     title, desc, url, guid, pubDate: string
 
 # the pkg name is normalized
@@ -113,9 +120,13 @@ var most_queried_packages = initCountTable[string]()
 # disk-persisted cache
 
 type
+  PkgHistoryItem = object
+    name: string
+    first_seen_time: Time
+
   Cache = object of RootObj
     # package creation/update history - new ones at bottom
-    pkgs_history: seq[string]
+    pkgs_history: seq[PkgHistoryItem]
     # pkgs list. Extra data from GH is embedded
     #pkgs: TableRef[string, Pkg]
 
@@ -592,16 +603,23 @@ settings:
 routes:
 
   get "/":
+    log request
     try:
       let top_pkg_names = top_keys(most_queried_packages, 5)
       log_debug "pkgs history len: $#" % $cache.pkgs_history.len
-      let new_pkg_names = cache.pkgs_history[0..min(5, cache.pkgs_history.high)]
+      var new_pkg_names: seq[string] = @[]
+      for item in cache.pkgs_history:
+        new_pkg_names.add item.name
+        if new_pkg_names.len > 5:
+          break
+
       resp base_page(generate_home_page(top_pkg_names, new_pkg_names))
     except:
       error getCurrentExceptionMsg()
       halt
 
   get "/search":
+    log request
     let found_pkg_names = search_packages(@"query")
 
     var pkgs_list: seq[Pkg] = @[]
@@ -611,6 +629,7 @@ routes:
     resp base_page(generate_pkg_list_page(pkgs_list))
 
   get "/pkg/@pkg_name/?":
+    log request
     let pname = normalize(@"pkg_name")
     if not pkgs.hasKey(pname):
       resp base_page "Package not found"
@@ -639,6 +658,7 @@ routes:
 
   post "/update_package":
     ## Create or update a package description
+    log request
     const required_fields = @["name", "url", "method", "tags", "description",
       "license", "web", "signatures", "authorized_keys"]
     var pkg_data: JsonNode
@@ -699,10 +719,12 @@ routes:
 
   get "/packages.json":
     ## Serve the packages list file
+    log request
     resp conf.packages_list_fname.readFile
 
   get "/docs/@pkg_name/?":
     ## Serve hosted docs for a package: summary page
+    log request
     let pname = normalize(@"pkg_name")
     if not pkgs.hasKey(pname):
       resp base_page("<p>Package not found</p>")
@@ -721,6 +743,7 @@ routes:
   #get "/docs/@pkg_name_and_doc_path":
   get "/docs/@pkg_name/@a?/?@b?/?@c?/?@d?":
     ## Serve hosted docs for a package
+    log request
     let pname = normalize(@"pkg_name")
     if not pkgs.hasKey(pname):
       resp base_page("<p>Package not found</p>")
@@ -768,25 +791,33 @@ routes:
     resp base_page(page)
 
   get "/loader":
+    log request
     resp base_page(
       generate_loader_page()
     )
 
   get "/packages.xml":
     ## New and updated packages feed
+    log request
     let baseurl = conf.public_baseurl
     let url = baseurl / "packages.xml"
 
     var rss_items: seq[RssItem] = @[]
-    for pname in cache.pkgs_history:
-      let pn = pname.normalize()
+    for item in cache.pkgs_history:
+      let pn = item.name.normalize()
       if not pkgs.hasKey(pn):
         log_debug "skipping $#" % pn
         continue
 
       let pkg = pkgs[pn]
-      let item_url = baseurl / "pkgs" / pn
-      let i:RssItem = (pn, pkg["description"].str, "", item_url, "")
+      let item_url = baseurl / "pkg" / pn
+      let i = RssItem(
+        title: pn,
+        desc: pkg["description"].str,
+        url: item_url,
+        guid: item_url,
+        pubdate: $item.first_seen_time
+      )
       rss_items.add i
 
     let r = generate_rss_feed(
@@ -801,6 +832,7 @@ routes:
     resp(r, contentType="application/rss+xml")
 
   get "/stats":
+    log request
     resp base_page """
     <p>Runtime: $#</p>
     <p>Queried packages count: $#</p>
@@ -810,15 +842,18 @@ routes:
 
   get "/ci":
     ## CI summary
+    log request
     #@bottle.view('index')
     #refresh_build_num()
     discard
 
   get "/ci/install_report":
+    log request
     discard
 
   get "/ci/badges/@pkg_name/version.svg":
     ## Version badge
+    log request
     let pname = normalize(@"pkg_name")
     if not pkgs.hasKey(pname):
       resp base_page "Package not found"
@@ -837,6 +872,7 @@ routes:
 
   get "/ci/badges/@pkg_name/nimdevel/status.svg":
     ## Status badge
+    log request
     let pname = normalize(@"pkg_name")
     if not pkgs.hasKey(pname):
       resp base_page "Package not found"
@@ -861,6 +897,8 @@ routes:
 
   get "/ci/badges/@pkg_name/nimdevel/output.html":
     ## Build output
+    log request
+    log_info "$#" % $request.ip
     let pname = normalize(@"pkg_name")
     if not pkgs.hasKey(pname):
       resp base_page "Package not found"
@@ -879,6 +917,9 @@ routes:
     except KeyError:
       halt
 
+  get "/robots.txt":
+    ## Serve robots.txt to throttle bots
+    resp "User-agent: *\nCrawl-delay: 300\n"
 
 
 proc cleanupWhitespace(s: string): string =
@@ -1009,6 +1050,22 @@ proc start_nim_commit_polling(poll_time: TimeInterval) {.async.} =
     await sleepAsync(poll_time.milliseconds)
     #FIXME asyncCheck
 
+proc run_systemd_sdnotify_pinger(ping_time_s: int) {.async.} =
+  ## Ping systemd watchdog using sd_notify
+  const msg = "NOTIFY_SOCKET env var not found - disabling watchdog pinger"
+  if not existsEnv("NOTIFY_SOCKET"):
+    log_info msg
+    echo msg
+    return
+
+  let sd = newSDNotify()
+  sd.notify_ready()
+  sd.notify_main_pid(getpid())
+  while true:
+    sd.ping_watchdog()
+    await sleepAsync ping_time_s * 1000
+
+
 proc run_github_packages_json_polling(poll_time_s: int) {.async.} =
   ## Poll GH for packages.json
   ## Overwrite packages.json local file!
@@ -1026,7 +1083,7 @@ proc run_github_packages_json_polling(poll_time_s: int) {.async.} =
         if pdata.hasKey("name"):
           let pname = pdata["name"].str.normalize()
           if not pkgs.hasKey(pname):
-            cache.pkgs_history.add pname
+            cache.pkgs_history.add PkgHistoryItem(name:pname, first_seen_time:getTime())
             log_debug "New pkg added on GH: $#" % pname
 
       cache.save()
@@ -1034,8 +1091,8 @@ proc run_github_packages_json_polling(poll_time_s: int) {.async.} =
       conf.packages_list_fname.writeFile(new_pkg_raw)
       load_packages()
 
-      for rawname in cache.pkgs_history:
-        let pname = rawname.normalize()
+      for item in cache.pkgs_history:
+        let pname = item.name.normalize()
         if not pkgs.hasKey(pname):
           log_debug "$# is gone" % pname
 
@@ -1060,6 +1117,7 @@ proc main() =
   load_packages()
   cache = load_cache()
   #asyncCheck start_nim_commit_polling(github_nim_commit_polling_time)
+  asyncCheck run_systemd_sdnotify_pinger(sdnotify_ping_time_s)
   asyncCheck run_github_packages_json_polling(github_packages_json_polling_time_s)
 
   log_info "starting loop"
