@@ -616,7 +616,7 @@ routes:
       resp base_page(generate_home_page(top_pkg_names, new_pkg_names))
     except:
       error getCurrentExceptionMsg()
-      halt
+      halt Http400
 
   get "/search":
     log request
@@ -758,7 +758,7 @@ routes:
       try:
         locate_pkg_root_dir(pname)
       except:
-        halt
+        halt Http400
         ""
 
     # Horrible hack
@@ -767,7 +767,7 @@ routes:
 
     if not doc_path.endswith(".html"):
       log_debug "Refusing to serve doc path $# $#" % [pname, doc_path]
-      halt
+      halt Http400
 
     log_debug "Attempting to serve doc path $# $#" % [pname, doc_path]
 
@@ -834,6 +834,7 @@ routes:
   get "/stats":
     log request
     resp base_page """
+    <br/>
     <p>Runtime: $#</p>
     <p>Queried packages count: $#</p>
     """ % [$cpuTime(), $len(most_queried_packages)]
@@ -883,7 +884,7 @@ routes:
       try:
         pkgs_doc_files[pname]
       except KeyError:
-        halt
+        halt Http400
         nil
     let badge =
       case md.build_status
@@ -915,7 +916,7 @@ routes:
         pkgs_doc_files[pname].expire_time,
       ))
     except KeyError:
-      halt
+      halt Http400
 
   get "/robots.txt":
     ## Serve robots.txt to throttle bots
