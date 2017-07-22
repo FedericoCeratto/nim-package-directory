@@ -2,35 +2,49 @@
 #proc generate_home_page(most_queried_packages_names, new_package_names: seq[string]): string =
 #  result = ""
 
-<div class="pure-g">
-  <div class="pure-u-1 pure-u-md-1-2">
-    <h2>Show Package By Name</h2>
-    <form onsubmit="location.href='/pkg/' + document.getElementById('pkg_name_inp').value; return false;">
-      <input type="text" id="pkg_name_inp" />
-      <button type="submit" class="submit input">Go to package</button>
+<div class="columns">
+  <div class="column col-12">
+    <form action="/search" method="GET" role="search" class="input-group">
+      <input class="form-input" name="query" placeholder="Find Nimble packages..." type="text">
+      <button type="submit" class="btn btn-primary input-group-btn">
+        <i class="fa fa-search"></i> Search
+      </button>
     </form>
   </div>
-  <div class="pure-u-1 pure-u-md-1-2">
-    <h2>Search Packages</h2>
-    <form action="/search" method="GET" role="search">
-      <input type="text" name="query" class="" autofocus placeholder="Search tags/keywords"  />
-      <button type="submit" class="submit input">Search</button>
-    </form>
-  </div>
-  # if most_queried_packages_names.len > 2:
-  <div id="most_queried_packages" class="pure-u-1 pure-u-md-1-2" style="padding:1em">
-    <p>Most queried packages:</p>
+</div>
+<h4><i class="fa fa-fire"></i>Trending</h4>
+<div class="columns">
+  <div class="column col-6">
     # for pname in most_queried_packages_names:
-    <span><a href="/pkg/${pname}">${pname}</a></span>
+      <div class="panel package">
+        <div class="panel-header">
+          <div class="panel-title">
+            <a href="/pkg/${pname}">${pname}</a>
+            <span class="version">v0.1.1</span>
+          </div>
+          <div class="package-description">A Nim web framework</div>
+        </div>
+        <div class="panel-body">
+
+          <figure class="avatar avatar-xs person" data-initial="DP">
+            <!--<img src="img/avatar-1.png" />-->
+          </figure>
+          <span class="username">dom96</span>
+          <span class="stargazers"><i class="fa fa-star" title="Stargazers"></i>456</span>
+          <span class="stargazers"><i class="fa fa-clock-o" title="Last updated"></i>2 minutes ago</span>
+        </div>
+        <div class="panel-footer">
+          <button class="btn input-group-btn">
+            <i class="fa fa-github"></i> Repo
+          </button>
+          <button class="btn input-group-btn">
+            <i class="fa fa-book"></i> Docs
+          </button>
+        </div>
+      </div>
     # end
   </div>
-  # end
-  # if new_package_names.len != 0:
-  <div id="new_package_names" class="pure-u-1 pure-u-md-1-2" style="padding:1em">
-    <p>New packages:</p>
-    # for pname in new_package_names:
-    <span><a href="/pkg/${pname}">${pname}</a></span>
-    # end
+  <div class="column col-6">
+
   </div>
-  # end
 </div>

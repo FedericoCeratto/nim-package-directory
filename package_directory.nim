@@ -49,7 +49,11 @@ const
   sdnotify_ping_time_s = 15
   nim_bin_path = "/usr/bin/nim"
   nimble_bin_path = "/usr/bin/nimble"
-  tmp_nimble_root_dir = "/dev/shm/nim_package_dir"
+  tmp_nimble_root_dir =
+    when defined(macosx):
+      "/tmp/nim_package_dir"
+    else:
+      "/dev/shm/nim_package_dir"
   build_expiry_time = 300.Time # 5 mins
   cache_fn = ".cache.json"
 

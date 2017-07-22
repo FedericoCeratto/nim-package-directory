@@ -5,93 +5,40 @@
 <html lang="en">
 <head>
 	<title>Nim package directory</title>
-	<link rel="shortcut icon" href="data:image/x-icon;base64,AAABAAEAEBAAAAEAIABoBAAAFgAAACgAAAAQAAAAIAAAAAEAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AAAAAAUAAAAF////AP///wD///8A////AP///wD///8A////AP///wD///8A////AAAAAAIAAABbAAAAlQAAAKIAAACbAAAAmwAAAKIAAACVAAAAWwAAAAL///8A////AP///wD///8A////AAAAABQAAADAAAAAYwAAAA3///8A////AP///wD///8AAAAADQAAAGMAAADAAAAAFP///wD///8A////AP///wAAAACdAAAAOv///wD///8A////AP///wD///8A////AP///wD///8AAAAAOgAAAJ3///8A////AP///wAAAAAnAAAAcP///wAAAAAoAAAASv///wD///8A////AP///wAAAABKAAAAKP///wAAAABwAAAAJ////wD///8AAAAAgQAAABwAAACIAAAAkAAAAJMAAACtAAAAFQAAABUAAACtAAAAkwAAAJAAAACIAAAAHAAAAIH///8A////AAAAAKQAAACrAAAAaP///wD///8AAAAARQAAANIAAADSAAAARf///wD///8AAAAAaAAAAKsAAACk////AAAAADMAAACcAAAAnQAAABj///8A////AP///wAAAAAYAAAAGP///wD///8A////AAAAABgAAACdAAAAnAAAADMAAAB1AAAAwwAAAP8AAADpAAAAsQAAAE4AAAAb////AP///wAAAAAbAAAATgAAALEAAADpAAAA/wAAAMMAAAB1AAAAtwAAAOkAAAD/AAAA/wAAAP8AAADvAAAA3gAAAN4AAADeAAAA3gAAAO8AAAD/AAAA/wAAAP8AAADpAAAAtwAAAGUAAAA/AAAA3wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAADfAAAAPwAAAGX///8A////AAAAAEgAAADtAAAAvwAAAL0AAADGAAAA7wAAAO8AAADGAAAAvQAAAL8AAADtAAAASP///wD///8A////AP///wD///8AAAAAO////wD///8A////AAAAAIcAAACH////AP///wD///8AAAAAO////wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A//8AAP//AAD4HwAA7/cAAN/7AAD//wAAoYUAAJ55AACf+QAAh+EAAAAAAADAAwAA4AcAAP5/AAD//wAA//8AAA=="/>
-	<meta charset="utf-8">
-	<meta name="description" content="">
-	<meta name="author" content="">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="utf-8">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
 	<link href="//fonts.googleapis.com/css?family=Raleway:400,300,600" rel="stylesheet" type="text/css">
-	<link rel="stylesheet" href="/css/main.css">
-  <style>
-    html {
-      position: relative;
-      min-height: 100%;
-    }
-    body {
-      margin-bottom: 5em;
-    }
-    .footer {
-      position: absolute;
-      bottom: 0;
-      width: 100%;
-      height: 3em;
-    }
-    .site-logo {
-      padding-top: 5px;
-    }
-  </style>
+
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/spectre.css/0.2.14/spectre.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
 </head>
-<body class="site">
-	<header>
-		<nav class="pure-menu pure-menu-horizontal pure-menu-scrollable">
-			<div class="nav-content">
-				<a href="/" class="pure-menu-heading pure-menu-link">
-					<img class="site-logo" src="/img/logo.svg" height="30" alt="Nim">
-				</a>
-				<div class="menu-separator"></div>
-				<ul class="pure-menu-list">
-					<li class="pure-menu-item"><a href="/" class="pure-menu-link">Main Page</a></li>
-				</ul>
-			</div>
-		</nav>
-	</header>
-	<div class="site-content">
-		<section class="content">
-			${content}
-		</section>
-	</div>
-  <footer class="footer">
-    <div class="container">
-      <section class="content">
-        <div class="pure-g">
-          <div class="pure-u-1 pure-u-sm-1-2 pure-u-md-1-4">
-            <ul>
-              <li><a href="https://github.com/FedericoCeratto/nim-package-directory">GitHub project</a></li>
-            </ul>
-          </div>
-          <div class="pure-u-1 pure-u-sm-1-2 pure-u-md-1-4">
-            <ul>
-              <li><a href="https://github.com/FedericoCeratto/nim-package-directory/issues">Issues &amp; Requests</a></li>
-            </ul>
-          </div>
-          <div class="pure-u-1 pure-u-sm-1-2 pure-u-md-1-4">
-            <ul>
-              <li>
-                <a href="/packages.xml">
-                  Package updates
-                </a>
-                <svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="13px" height="13px" id="RSSicon" viewBox="0 0 256 256">
-                  <defs>
-                    <linearGradient x1="0.085" y1="0.085" x2="0.915" y2="0.915" id="RSSg">
-                      <stop  offset="0.0" stop-color="#E3702D"/><stop  offset="0.1071" stop-color="#EA7D31"/>
-                      <stop  offset="0.3503" stop-color="#F69537"/><stop  offset="0.5" stop-color="#FB9E3A"/>
-                      <stop  offset="0.7016" stop-color="#EA7C31"/><stop  offset="0.8866" stop-color="#DE642B"/>
-                      <stop  offset="1.0" stop-color="#D95B29"/>
-                    </linearGradient>
-                  </defs>
-                  <rect width="256" height="256" rx="55" ry="55" x="0"  y="0"  fill="#CC5D15"/>
-                  <rect width="246" height="246" rx="50" ry="50" x="5"  y="5"  fill="#F49C52"/>
-                  <rect width="236" height="236" rx="47" ry="47" x="10" y="10" fill="url(#RSSg)"/>
-                  <circle cx="68" cy="189" r="24" fill="#FFF"/>
-                  <path d="M160 213h-34a82 82 0 0 0 -82 -82v-34a116 116 0 0 1 116 116z" fill="#FFF"/>
-                  <path d="M184 213A140 140 0 0 0 44 73 V 38a175 175 0 0 1 175 175z" fill="#FFF"/>
-                </svg>
-              </li>
-            </ul>
-          </div>
-        </div>
-      </section>
-    </div>
-  </footer>
+<body>
+  <section class="section section-header bg-gray">
+    <section class="grid-header container grid-960">
+      <header class="navbar">
+        <section class="navbar-section">
+          <a href="/" class="navbar-logo"><img height="50px" src="img/nimble_logo.svg"></img></a>
+          <a href="/" class="navbar-brand mr-10">Nim Package Directory</a>
+        </section>
+        <section class="navbar-center">
+
+        </section>
+        <section class="navbar-section">
+          <!-- TODO: Write about page -->
+          <!--<a href="/about.html" class="btn btn-link">About</a>-->
+          <a href="https://twitter.com/nim_lang" class="btn btn-link">Twitter</a>
+          <a href="https://github.com/FedericoCeratto/nim-package-directory" class="btn btn-link">GitHub</a>
+          <a href="/packages.xml">RSS</a>
+        </section>
+      </header>
+    </section>
+  </section>
+
+  <div class="container grid-960">
+    ${content}
+  </div>
+
 </body>
 </html>
