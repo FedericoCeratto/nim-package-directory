@@ -9,7 +9,7 @@ bin            = @["package_directory"]
 
 # Dependencies
 
-requires "nim >= 0.14.2", "jester", "tempfile", "rss"
+requires "nim >= 0.14.2", "jester", "tempfile", "rss", "sdnotify"
 
 task release, "Build a relase":
   exec "nim c -d:release package_directory"
