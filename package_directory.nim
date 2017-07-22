@@ -36,7 +36,7 @@ import github,
 
 const
   template_path = "./templates"
-  build_timeout_seconds = 10
+  build_timeout_seconds = 20
   github_readme_tpl = "https://api.github.com/repos/$#/readme"
   github_tags_tpl = "https://api.github.com/repos/$#/tags"
   github_latest_version_tpl = "https://api.github.com/repos/$#/releases/latest"
@@ -187,6 +187,8 @@ proc load_packages*() =
   for pdata in pkg_list:
     if not pdata.hasKey("name"):
       continue
+    if not pdata.hasKey("tags"):
+      continue
     # Normalize pkg name
     pdata["name"].str = pdata["name"].str.normalize()
     if pdata["name"].str in pkgs:
@@ -279,6 +281,8 @@ proc fetch_github_packages_json(): string =
 
 proc `+`(t1, t2: Time): Time {.borrow.}
 
+type RunOutput = tuple[exit_code: int, elapsed: float, output: string]
+
 proc run_process(bin_path, desc, work_dir: string,
     timeout: int, log_output: bool,
     args: varargs[string, `$`]): string {.discardable.} =
@@ -306,6 +310,54 @@ proc run_process(bin_path, desc, work_dir: string,
   error "Stdout: ---\n$#---" % p.outputStream().readAll()
   error "Stderr: ---\n$#---" % p.errorStream().readAll()
   raise newException(ProcessError, "$# failed" % desc)
+
+proc run_process2(bin_path, desc, work_dir: string,
+    timeout: int, log_output: bool,
+    args: seq[string]): Future[RunOutput] {.async.} =
+  ## Run command with timeout
+  let
+    t0 = epochTime()
+    p = startProcess(
+      bin_path,
+      args=args,
+      workingDir=work_dir,
+      options={poStdErrToStdOut}
+    )
+    pid = p.processID()
+
+  var exit_code = 0
+  var output = ""
+  while true:
+    let elapsed = epochTime() - t0
+    if elapsed > timeout.float:
+      log_debug "timed out!"
+      p.kill()
+      exit_code = -2
+      break
+
+    let new_output = p.outputStream().readAll()
+    output.add new_output
+    for line in new_output.splitLines():
+      log_debug "$#>>> $#" % [$pid, line]
+
+    exit_code = p.peekExitCode()
+    case exit_code:
+    of -1:
+      # -1: still running, wait
+      log_debug "waiting $#..." % $pid
+      await sleepAsync 300
+
+    of 0:
+      discard p.waitForExit()
+      break
+
+    else:
+      discard p.waitForExit()
+      break
+
+  let elapsed = epochTime() - t0
+  return (exit_code, elapsed, output)
+
 
 proc fetch_github_versions(pkg: Pkg, owner_repo_name: string) =
   ## Fetch versions from GH from releases and tags
@@ -361,108 +413,85 @@ proc fetch_github_versions(pkg: Pkg, owner_repo_name: string) =
     pkg["github_latest_version_time"] = newJString ""
 
 
+# proc fetch_using_git(pname, url: string): bool =
+#   let repo_dir =  tmp_nimble_root_dir / pname
+#   if not repo_dir.existsDir():
+#     log_debug "checking out $#" % url
+#     run_process_old(git_bin_path, "git clone", tmp_nimble_root_dir, 60, false,
+#     "clone", url, pname)
+#   else:
+#     log_debug "git pull-ing $#" % url
+#     run_process_old(git_bin_path, "git pull", repo_dir, 60, false,
+#     "pull")
+# 
+#   let commitish = run_process_old(git_bin_path, "git rev-parse", repo_dir,
+#   1, false,
+#   "rev-parse", "--verify", "HEAD")
+# 
+#   if commitish == pkgs_doc_files[pname].last_commitish:
+#     pkgs_doc_files[pname].expire_time = getTime() + build_expiry_time
+#     #pkgs_doc_files[pname].building = false # unlock
+#     log_debug "no changes to repo"
+#     return false
+# 
+#   return true
 
-proc fetch_using_git(pname, url: string): bool =
-  let repo_dir =  tmp_nimble_root_dir / pname
-  if not repo_dir.existsDir():
-    log_debug "checking out $#" % url
-    run_process(git_bin_path, "git clone", tmp_nimble_root_dir, 60, false,
-    "clone", url, pname)
-  else:
-    log_debug "git pull-ing $#" % url
-    run_process(git_bin_path, "git pull", repo_dir, 60, false,
-    "pull")
-
-  let commitish = run_process(git_bin_path, "git rev-parse", repo_dir,
-  1, false,
-  "rev-parse", "--verify", "HEAD")
-
-  if commitish == pkgs_doc_files[pname].last_commitish:
-    pkgs_doc_files[pname].expire_time = getTime() + build_expiry_time
-    #pkgs_doc_files[pname].building = false # unlock
-    log_debug "no changes to repo"
-    return false
-
-  return true
 
 proc fetch_and_build_pkg_using_nimble_old(pname: string) {.async.} =
   ##
   let tmp_dir = tmp_nimble_root_dir / pname
   log_debug "Starting nimble install $# --nimbleDir=$# -y" % [pname, tmp_dir]
-  let
-    t0 = epochTime()
-    p = startProcess(
+  let po = await run_process2(
       nimble_bin_path,
-      args=["install", $pname, "--nimbleDir=$#" % tmp_dir, "-y", "--debug"],
-      options={poStdErrToStdOut}
+      "nimble",
+      ".",
+      build_timeout_seconds,
+      true,
+      @["install", $pname, "--nimbleDir=$#" % tmp_dir, "-y", "--debug"],
     )
 
-  var build_status: PkgBuildStatus
-  while true:
-    let elapsed = epochTime() - t0
-    if elapsed > build_timeout_seconds:
-      log_debug "timed out!"
-      p.kill()
-      build_status = PkgBuildStatus.TIMEOUT
-      break
-
-    let exit_code = p.peekExitCode()
-    case exit_code:
-    of -1:
-      # -1: still running, wait
-      await sleepAsync 500
-      log_debug "waiting build for $# $#s..." %
-        [pname, $int(elapsed)]
-
-    of 0:
-      build_status = PkgBuildStatus.OK
-      discard p.waitForExit()
-      break
-
+  let build_status: PkgBuildStatus =
+    if po.exit_code == 0:
+      PkgBuildStatus.OK
+    elif po.exit_code == -2:
+      PkgBuildStatus.Timeout
     else:
-      build_status = PkgBuildStatus.Failed
-      discard p.waitForExit()
-      break
+      PkgBuildStatus.Failed
 
   log_debug "Setting status ", build_status
 
-  let output = p.outputStream().readAll()
-  if output.len > 0:
-    log_debug "Stdout: ---\n$#---" % output
-
-  pkgs_doc_files[pname].build_output = output
+  pkgs_doc_files[pname].build_output = po.output
   pkgs_doc_files[pname].build_status = build_status
   pkgs_doc_files[pname].build_time = getTime()
   pkgs_doc_files[pname].expire_time = getTime() + build_expiry_time
 
-proc fetch_pkg_using_nimble(pname: string): bool =
-  ## UNUSED
-  let pkg_install_dir = tmp_nimble_root_dir / pname
-
-  var outp = run_process(nimble_bin_path, "nimble update",
-    tmp_nimble_root_dir, 10, true,
-    "update", " --nimbleDir=" & tmp_nimble_root_dir)
-  assert outp.contains("Done")
-
-  #if not tmp_nimble_root_dir.existsDir():
-  outp = ""
-  if true:
-    # First install
-    log_debug tmp_nimble_root_dir, " is not existing"
-    outp = run_process(nimble_bin_path, "nimble install", tmp_nimble_root_dir,
-      60, true,
-      "install", pname, " --nimbleDir=./nyan", "-y")
-    log_debug "Install successful"
-
-  else:
-    # Update pkg
-    #outp = run_process(nimble_bin_path, "nimble install", "/", 60, true,
-    #  "install", pname, " --nimbleDir=" & tmp_nimble_root_dir, "-y")
-    #  FIXME
-    log_debug "Update successful"
-
-  pkgs_doc_files[pname].build_output = outp
-  return true
+# proc fetch_pkg_using_nimble(pname: string): bool =
+#   let pkg_install_dir = tmp_nimble_root_dir / pname
+# 
+#   var outp = run_process_old(nimble_bin_path, "nimble update",
+#     tmp_nimble_root_dir, 10, true,
+#     "update", " --nimbleDir=" & tmp_nimble_root_dir)
+#   assert outp.contains("Done")
+# 
+#   #if not tmp_nimble_root_dir.existsDir():
+#   outp = ""
+#   if true:
+#     # First install
+#     log_debug tmp_nimble_root_dir, " is not existing"
+#     outp = run_process_old(nimble_bin_path, "nimble install", tmp_nimble_root_dir,
+#       60, true,
+#       "install", pname, " --nimbleDir=./nyan", "-y")
+#     log_debug "Install successful"
+# 
+#   else:
+#     # Update pkg
+#     #outp = run_process_old(nimble_bin_path, "nimble install", "/", 60, true,
+#     #  "install", pname, " --nimbleDir=" & tmp_nimble_root_dir, "-y")
+#     #  FIXME
+#     log_debug "Update successful"
+# 
+#   pkgs_doc_files[pname].build_output = outp
+#   return true
 
 proc locate_pkg_root_dir(pname: string): string =
   ## Locate installed pkg root dir
@@ -864,7 +893,13 @@ routes:
     try:
       let md = pkgs_doc_files[pname]
       let version = md.version
-      let badge = version_badge_tpl % [version, version]
+      if version == nil:
+        log_debug "Version is nil"
+      let badge =
+        if version == nil:
+          version_badge_tpl % ["none", "none"]
+        else:
+          version_badge_tpl % [version, version]
       resp(badge, contentType = "image/svg+xml")
     except:
       log_debug getCurrentExceptionMsg()
