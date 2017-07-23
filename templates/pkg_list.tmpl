@@ -34,9 +34,11 @@
 					<i class="fa fa-book"></i> Docs
 				</button>
 #if pkg.has_key("web"):
+				<a href="${pkg["web"].str}">
 					<button class="btn input-group-btn">
-						<a class="button" href="${pkg["web"].str}"><i class="fa fa-globe"></i> Project Website</a>
+						<i class="fa fa-globe"></i> Project Website
 					</button>
+				</a>
 #end if
 			</div>
 		</div>

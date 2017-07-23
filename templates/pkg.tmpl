@@ -46,42 +46,43 @@
 <p>
   <b>CI:</b>
   <a href="/ci/badges/${pkg["name"].str}/nimdevel/output.html">
-  <img src="/ci/badges/${pkg["name"].str}/nimdevel/status.svg">
+    <img src="/ci/badges/${pkg["name"].str}/nimdevel/status.svg">
+  </a>
 </p>
 
 #if pkg.has_key("github_latest_version_url"):
-  <button class="btn input-group-btn">
-    <a href="${pkg["github_latest_version_url"].str}">
+  <a href="${pkg["github_latest_version_url"].str}">
+    <button class="btn input-group-btn">
       <i class="fa fa-download"></i> Download
-    </a>
-  </button>
+    </button>
+  </a>
 #end if
 
 #if pkg.has_key("web"):
-  <button class="btn input-group-btn">
-    <a href="${pkg["web"].str}">
+  <a href="${pkg["web"].str}">
+    <button class="btn input-group-btn">
       <i class="fa fa-globe"></i> Project website
-    </a>
-  </button>
+    </button>
+  </a>
 #end if
 
 #if pkg.has_key("doc"):
-  <button class="btn input-group-btn">
-    <a href="${pkg["doc"].str}">
+  <a href="${pkg["doc"].str}">
+    <button class="btn input-group-btn">
       <i class="fa fa-book"></i> Docs
-    </a>
-  </button>
+    </button>
+  </a>
 #end if
 
 <!-- TODO: Can we remove the above? -->
 
 #let url = pkg["url"].str
 #if url.startswith("https://github.com/") or url.startswith("http://github.com/") or url.startswith("git"):
-  <button class="btn input-group-btn">
-    <a href="/docs/${pkg["name"].str}">
+  <a href="/docs/${pkg["name"].str}">
+    <button class="btn input-group-btn">
       <i class="fa fa-book"></i> Hosted docs
-    </a>
-  </button>
+    </button>
+  </a>
 #end if
 
 <div class="empty">
@@ -94,9 +95,9 @@
 
 
 <!-- TODO: Dom: IMO this shouldn't be shown -->
-<!--if pkg.has_key("github_latest_version_time"):
-<small>Released on ${pkg["github_latest_version_time"].str}</small>
-  end if-->
+#if pkg.has_key("github_latest_version_time"):
+<!--<small>Released on ${pkg["github_latest_version_time"].str}</small>-->
+#end if
 
 
 

@@ -29,6 +29,12 @@ h4 > .fa {
   padding-right: 0.5rem;
 }
 
+.panel.package .package-description {
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
 .empty {
   margin-top: 2rem;
   margin-bottom: 2rem;
