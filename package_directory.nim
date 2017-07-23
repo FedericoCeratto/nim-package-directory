@@ -646,7 +646,7 @@ routes:
         if new_pkg_names.len > 5:
           break
 
-      resp base_page(generate_home_page(top_pkg_names, new_pkg_names))
+      resp base_page(request, generate_home_page(top_pkg_names, new_pkg_names))
     except:
       error getCurrentExceptionMsg()
       halt Http400
@@ -659,13 +659,13 @@ routes:
     for pn in found_pkg_names.keys():
       pkgs_list.add pkgs[pn]
 
-    resp base_page(generate_pkg_list_page(pkgs_list))
+    resp base_page(request, generate_pkg_list_page(pkgs_list))
 
   get "/pkg/@pkg_name/?":
     log request
     let pname = normalize(@"pkg_name")
     if not pkgs.hasKey(pname):
-      resp base_page "Package not found"
+      resp base_page(request, "Package not found")
 
     most_queried_packages.inc pname
     let
@@ -687,7 +687,7 @@ routes:
         pkg.fetch_github_versions(owner_repo_name)
         pkg.fetch_github_doc_pages(owner, repo_name)
 
-    resp base_page(generate_pkg_page(pkg))
+    resp base_page(request, generate_pkg_page(pkg))
 
   post "/update_package":
     ## Create or update a package description
@@ -748,7 +748,7 @@ routes:
     save_packages()
     log_info if pkg_already_exists: "Updated existing package $#" % name
       else: "Added new package $#" % name
-    resp base_page("OK")
+    resp base_page(request, "OK")
 
   get "/packages.json":
     ## Serve the packages list file
@@ -760,7 +760,7 @@ routes:
     log request
     let pname = normalize(@"pkg_name")
     if not pkgs.hasKey(pname):
-      resp base_page("<p>Package not found</p>")
+      resp base_page(request, "<p>Package not found</p>")
 
     most_queried_packages.inc pname
     let pkg = pkgs[pname]
@@ -769,7 +769,7 @@ routes:
     await fetch_and_build_pkg_if_needed(pname)
 
     # Show files summary
-    resp base_page(
+    resp base_page(request,
       generate_doc_files_list_page(pname, pkgs_doc_files[pname])
     )
 
@@ -779,7 +779,7 @@ routes:
     log request
     let pname = normalize(@"pkg_name")
     if not pkgs.hasKey(pname):
-      resp base_page("<p>Package not found</p>")
+      resp base_page(request, "<p>Package not found</p>")
 
     most_queried_packages.inc pname
     let pkg = pkgs[pname]
@@ -812,20 +812,20 @@ routes:
     let fn = pkg_root_dir / doc_path
     if not existsFile(fn):
       log_info "serving $# - not found" % fn
-      resp base_page """
+      resp base_page(request, """
         <p>Sorry, that file does not exists.
         <a href="/pkg/$#">Go back to $#</a>
         </p>
-        """ % [pname, pname]
+        """ % [pname, pname])
 
     # Serve doc file
     let head = """<h4>Doc files for <a href="/pkg/$#">$#</a></h4>""" % [pname, pname]
     let page = head & fn.readFile()
-    resp base_page(page)
+    resp base_page(request, page)
 
   get "/loader":
     log request
-    resp base_page(
+    resp base_page(request,
       generate_loader_page()
     )
 
@@ -866,11 +866,11 @@ routes:
 
   get "/stats":
     log request
-    resp base_page """
+    resp base_page(request, """
     <br/>
     <p>Runtime: $#</p>
     <p>Queried packages count: $#</p>
-    """ % [$cpuTime(), $len(most_queried_packages)]
+    """ % [$cpuTime(), $len(most_queried_packages)])
 
   # CI Routing
 
@@ -890,7 +890,7 @@ routes:
     log request
     let pname = normalize(@"pkg_name")
     if not pkgs.hasKey(pname):
-      resp base_page "Package not found"
+      resp base_page(request, "Package not found")
 
     most_queried_packages.inc pname
     await fetch_and_build_pkg_if_needed(pname)
@@ -915,7 +915,7 @@ routes:
     log request
     let pname = normalize(@"pkg_name")
     if not pkgs.hasKey(pname):
-      resp base_page "Package not found"
+      resp base_page(request, "Package not found")
 
     most_queried_packages.inc pname
     await fetch_and_build_pkg_if_needed(pname)
@@ -941,14 +941,14 @@ routes:
     log_info "$#" % $request.ip
     let pname = normalize(@"pkg_name")
     if not pkgs.hasKey(pname):
-      resp base_page "Package not found"
+      resp base_page(request, "Package not found")
 
     most_queried_packages.inc pname
     await fetch_and_build_pkg_if_needed(pname)
     try:
       let outp = pkgs_doc_files[pname].build_output
       let build_output = translate_term_colors(outp)
-      resp base_page(generate_build_output_page(
+      resp base_page(request, generate_build_output_page(
         pname,
         build_output,
         pkgs_doc_files[pname].build_time,

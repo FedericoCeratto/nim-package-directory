@@ -28,3 +28,32 @@ h4 > .fa {
 .panel.package > .panel-body > .stargazers > .fa {
   padding-right: 0.5rem;
 }
+
+.empty {
+  margin-top: 2rem;
+  margin-bottom: 2rem;
+}
+
+.owner {
+  margin-top: -1.5rem;
+  display: block;
+  margin-bottom: 1rem;
+}
+
+/* GitHub readme */
+/* TODO: The anchors don't show up properly, see how it's done on Spectre's
+   site */
+
+.anchor {
+  height: 0;
+  margin-left: -1em;
+  overflow: hidden;
+  position: absolute;
+  width: 0;
+}
+.anchor:focus,
+.anchor:hover {
+  height: auto;
+  text-decoration: none;
+  width: auto;
+}
