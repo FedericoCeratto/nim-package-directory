@@ -1,17 +1,22 @@
 #? stdtmpl | standard
-#proc generate_home_page(most_queried_packages_names, new_package_names: seq[string]): string =
+#proc generate_search_box(value=""): string =
 #  result = ""
-
 <div class="columns">
   <div class="column col-12">
     <form action="/search" method="GET" role="search" class="input-group">
-      <input class="form-input" name="query" placeholder="Find Nimble packages..." type="text">
+      <input class="form-input" name="query" placeholder="Find Nimble packages..." type="text" value="$value">
       <button type="submit" class="btn btn-primary input-group-btn">
         <i class="fa fa-search"></i> Search
       </button>
     </form>
   </div>
 </div>
+#end
+#
+#proc generate_home_page(most_queried_packages_names, new_package_names: seq[string]): string =
+#  result = ""
+
+${generate_search_box()}
 <h4><i class="fa fa-fire"></i>Trending</h4>
 <div class="columns">
     # for pname in most_queried_packages_names:

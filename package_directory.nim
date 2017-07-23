@@ -659,7 +659,9 @@ routes:
     for pn in found_pkg_names.keys():
       pkgs_list.add pkgs[pn]
 
-    resp base_page(request, generate_pkg_list_page(pkgs_list))
+    let body = generate_search_box(@"query") &
+               generate_pkg_list_page(pkgs_list)
+    resp base_page(request, body)
 
   get "/pkg/@pkg_name/?":
     log request

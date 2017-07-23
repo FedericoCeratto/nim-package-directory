@@ -1,10 +1,10 @@
 #? stdtmpl | standard
-#proc generate_pkg_list_page(pkgs: seq[Pkg], title="Search results"): string =
+#proc generate_pkg_list_page(pkgs: seq[Pkg]): string =
 #  result = ""
 
 <div class="columns">
 <div class="column col-12">
-	<h4>${title}</h4>
+	<h4>${pkgs.len} packages found</h4>
 </div>
 
 #for pkg in pkgs:
