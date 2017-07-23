@@ -46,6 +46,20 @@ h4 > .fa {
   margin-bottom: 1rem;
 }
 
+#require-tile {
+  margin-top: 2rem;
+  margin-bottom: 4rem;
+}
+
+.divided {
+  border-bottom: 1px solid #e7e7e7;
+  padding: 0.6rem 0.2rem;
+}
+
+.divided button {
+  margin-bottom: 1rem;
+}
+
 /* GitHub readme */
 /* TODO: The anchors don't show up properly, see how it's done on Spectre's
    site */

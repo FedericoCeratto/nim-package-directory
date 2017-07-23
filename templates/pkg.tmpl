@@ -2,94 +2,117 @@
 #proc generate_pkg_page(pkg: Pkg): string =
 #  result = ""
 
-<h1>${pkg["name"].str}</h1>
+<div class="columns">
+  <div class="column col-9">
+    <h3>${pkg["name"].str}</h3>
+    #for tag in pkg["tags"]:
+      <label class="chip">
+        <a href="/search?query=$tag.str">
+        $tag.str
+        </a>
+      </label>
+    #end for
+    <p>${pkg["description"].str}</p>
+    #if pkg.has_key("github_readme"):
+    <div class="card" id="github-readme">
+      <div class="card-header">
+        <h4 class="card-title">Readme</h4>
+      </div>
+      <div class="card-body">
+        ${pkg["github_readme"].str}
+      </div>
+    </div>
+    #end
+  </div>
 
-#if pkg.has_key("github_owner"):
-  <span class="owner">
-    by <figure class="avatar avatar-xs" data-initial="" style="background-color: #5764c6;">
-    </figure>
-    <a href="https://github.com/${pkg["github_owner"].str}">
-      ${pkg["github_owner"].str}
-    </a>
-  </span>
-#end
+  <div class="column col-3">
+    <div class="tile tile-centered" id="require-tile">
+      <div class="tile-icon">
+        <i class="fa fa-download fa-3x"></i>
+      </div>
+      <div class="tile-content">
+        <div class="tile-title">
+          <tt>requires "${pkg["name"].str}"</tt>
+        </div>
+        <div class="tile-subtitle">
+          Need help? Click <a href="#">here</a>.
+        </div>
+      </div>
+    </div>
+    #if pkg.has_key("github_owner"):
+    <div class="tile tile-centered divided">
+      <div class="tile-content">
+        <div class="tile-title">
+          <figure class="avatar avatar-xs" data-initial="" style="background-color: #5764c6;">
+          </figure>
+          <a href="https://github.com/${pkg["github_owner"].str}">
+            ${pkg["github_owner"].str}
+          </a>
+        </div>
+      </div>
+    </div>
+    #end
+    #if pkg.has_key("github_versions"):
+    <div class="tile tile-centered divided">
+      <div class="tile-content">
+        #if pkg["github_versions"].getElems().len > 0:
+          <b>${pkg["github_versions"].getElems().join(", ")}</b>
+          are the available versions
+        #else:
+          No tagged versions available
+        #end
+      </div>
+    </div>
+    #end
+    <div class="tile tile-centered divided">
+      <div class="tile-content">
+        <div class="tile-title">
+          ${pkg["license"].str}
+        </div>
+      </div>
+    </div>
+    <div class="tile tile-centered divided">
+      <div class="tile-content">
+        <div>
+          <a href="/ci/badges/${pkg["name"].str}/nimdevel/output.html">
+            <img src="/ci/badges/${pkg["name"].str}/version.svg" alt="badge">
+          </a>
+          <a href="/ci/badges/${pkg["name"].str}/nimdevel/output.html">
+            <img src="/ci/badges/${pkg["name"].str}/nimdevel/status.svg">
+          </a>
+        </div>
+      </div>
+    </div>
 
-#for tag in pkg["tags"]:
-  <label class="chip">
-    <a href="/search?query=$tag.str">
-    $tag.str
-    </a>
-  </label>
-#end for
+    <div class="tile tile-centered divided">
+      <div class="tile-content">
+        #if pkg.has_key("web"):
+        <a href="${pkg["web"].str}">
+          <button class="btn input-group-btn">
+            <i class="fa fa-globe"></i> Project website
+          </button>
+        </a>
+        #end
+        #if pkg.has_key("doc"):
+          <a href="${pkg["doc"].str}">
+            <button class="btn input-group-btn">
+              <i class="fa fa-book"></i> Docs
+            </button>
+          </a>
+        #end if
+        #let url = pkg["url"].str
+        #if url.startswith("https://github.com/") or url.startswith("http://github.com/") or url.startswith("git"):
+          <a href="/docs/${pkg["name"].str}">
+            <button class="btn input-group-btn">
+              <i class="fa fa-book"></i> Hosted docs
+            </button>
+          </a>
+        #end if
+      </div>
+    </div>
 
-<p>${pkg["description"].str}</p>
 
-#if pkg.has_key("github_versions"):
-  <p>
-    <b>Versions:</b>
-    ${pkg["github_versions"]}
-  </p>
-#end
 
-<p>
-  <b>Latest version:</b>
-  <a href="/ci/badges/${pkg["name"].str}/nimdevel/output.html">
-    <img src="/ci/badges/${pkg["name"].str}/version.svg" alt="badge">
-  </a>
-</p>
-
-<p>
-  <b>License:</b>
-  ${pkg["license"].str}
-</p>
-
-<p>
-  <b>CI:</b>
-  <a href="/ci/badges/${pkg["name"].str}/nimdevel/output.html">
-    <img src="/ci/badges/${pkg["name"].str}/nimdevel/status.svg">
-  </a>
-</p>
-
-#if pkg.has_key("github_latest_version_url"):
-  <a href="${pkg["github_latest_version_url"].str}">
-    <button class="btn input-group-btn">
-      <i class="fa fa-download"></i> Download
-    </button>
-  </a>
-#end if
-
-#if pkg.has_key("web"):
-  <a href="${pkg["web"].str}">
-    <button class="btn input-group-btn">
-      <i class="fa fa-globe"></i> Project website
-    </button>
-  </a>
-#end if
-
-#if pkg.has_key("doc"):
-  <a href="${pkg["doc"].str}">
-    <button class="btn input-group-btn">
-      <i class="fa fa-book"></i> Docs
-    </button>
-  </a>
-#end if
-
-<!-- TODO: Can we remove the above? -->
-
-#let url = pkg["url"].str
-#if url.startswith("https://github.com/") or url.startswith("http://github.com/") or url.startswith("git"):
-  <a href="/docs/${pkg["name"].str}">
-    <button class="btn input-group-btn">
-      <i class="fa fa-book"></i> Hosted docs
-    </button>
-  </a>
-#end if
-
-<div class="empty">
-  <h4 class="empty-title">Use ${pkg["name"].str}</h4>
-  <p class="empty-subtitle">Add the following to your <code>.nimble</code> file.</p>
-  <div class="empty-action">
-    <tt>requires "${pkg["name"].str}"</tt>
   </div>
 </div>
 
@@ -98,18 +121,3 @@
 #if pkg.has_key("github_latest_version_time"):
 <!--<small>Released on ${pkg["github_latest_version_time"].str}</small>-->
 #end if
-
-
-
-
-
-#if pkg.has_key("github_readme"):
-<div class="card">
-  <div class="card-header">
-    <h4 class="card-title">Readme</h4>
-  </div>
-  <div class="card-body">
-    ${pkg["github_readme"].str}
-  </div>
-</div>
-#end
