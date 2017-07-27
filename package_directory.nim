@@ -19,7 +19,7 @@ import asyncdispatch,
  tables,
  times
 
-from algorithm import sort, sorted, sortedByIt
+from algorithm import sort, sorted, sortedByIt, reversed
 from marshal import store, load
 from posix import onSignal, SIGINT, SIGTERM, getpid
 from times import epochTime
@@ -31,6 +31,7 @@ import jester,
 import github,
   signatures,
   email,
+  friendly_timeinterval,
   persist
 
 
@@ -41,6 +42,7 @@ const
   github_tags_tpl = "https://api.github.com/repos/$#/tags"
   github_latest_version_tpl = "https://api.github.com/repos/$#/releases/latest"
   github_doc_index_tpl = "https://$#.github.io/$#/index.html"
+  github_repository_search_tpl = "https://api.github.com/search/repositories?q=language:nim+pushed:>$#&per_page=$#sort=$#&page=$#"
   github_readme_header = "Accept:application/vnd.github.v3.html\c\L"
   github_caching_time = 600
   github_packages_json_raw_url= "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json"
@@ -163,6 +165,7 @@ include "templates/doc_files_list.tmpl"
 include "templates/loader.tmpl"
 include "templates/rss.tmpl"
 include "templates/build_output.tmpl"
+include "templates/github_trending_pkg_list.tmpl"
 
 const
   success_badge = slurp "templates/success.svg"
@@ -411,6 +414,37 @@ proc fetch_github_versions(pkg: Pkg, owner_repo_name: string) =
       )
 
     pkg["github_latest_version_time"] = newJString ""
+
+proc fetch_github_repository_stats(sorting="updated", pagenum=1, limit=200, initial_date: TimeInfo): seq[JsonNode] =
+  ## Fetch projects on GitHub
+  let date = initial_date.format("yyyy-MM-dd")
+  let q = github_repository_search_tpl % [date, $limit, sorting, $pagenum]
+  log_info "Searching GH repos: '$#'" % q
+  let query_res = getContent(q, extraHeaders=github_token).parseJson
+  if sorting == "updated":
+    return query_res["items"].elems.sortedByIt(it["updated_at"].str).reversed()
+  return query_res["items"].elems
+
+proc github_trending_packages(): string =
+  ## Trending GitHub packages
+  # TODO: filter packages in packages.json
+  # TODO: caching
+  let pkgs_list = fetch_github_repository_stats(
+    sorting="updated", pagenum=1, limit=20,
+    initial_date=getGmTime(getTime() - 14.days)
+  )
+  for p in pkgs_list:
+    try:
+      # 2017-07-21T12:48:35Z
+      let t = p["pushed_at"].str.parse("yyyy-MM-ddTHH:mm:ss")
+      let d = toFriendlyInterval(t.toTime, getTime(), approx=2)
+      p["update_age"] = newJString d
+    except:
+      p["update_age"] = newJString ""
+
+
+  let inner = generate_github_trending_pkg_list_page(pkgs_list)
+  return base_page(inner)
 
 
 # proc fetch_using_git(pname, url: string): bool =
@@ -867,6 +901,10 @@ routes:
     <p>Runtime: $#</p>
     <p>Queried packages count: $#</p>
     """ % [$cpuTime(), $len(most_queried_packages)]
+
+  get "/github_trending":
+    log request
+    resp github_trending_packages()
 
   # CI Routing
 
