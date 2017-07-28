@@ -26,7 +26,8 @@ from times import epochTime
 
 #from nimblepkg import getTagsListRemote, getVersionList
 import jester,
-  sdnotify
+  sdnotify,
+  statsd_client
 
 import github,
   signatures,
@@ -59,6 +60,7 @@ const
 
 let conf = load_conf()
 let github_token = "Authorization: token $#\c\L" % conf.github_token
+let stats = newStatdClient(prefix="nim_package_directory")
 
 # parse CLI opts
 
@@ -578,6 +580,7 @@ proc fetch_and_build_pkg_if_needed(pname: string) {.async.} =
       let elapsed = epochTime() - t0
       if elapsed > build_timeout_seconds:
         log_debug "timed out!"
+        stats.incr("build_timed_out")
         break
       log_debug "waiting already running build for $# $#s..." % [pname, $int(elapsed)]
       await sleepAsync 500
@@ -604,12 +607,18 @@ proc fetch_and_build_pkg_if_needed(pname: string) {.async.} =
   #if fetch_pkg_using_nimble(pname) == false:
 
   pkgs_doc_files[pname].building = true # lock
+  let t0 = epochTime()
   await fetch_and_build_pkg_using_nimble_old(pname)
+  let elapsed = epochTime() - t0
+  stats.gauge("build_time", elapsed)
   pkgs_doc_files[pname].building = false # unlock
 
   if pkgs_doc_files[pname].build_status != PkgBuildStatus.OK:
     log_debug "fetch_and_build_pkg_if_needed failed - skipping doc generation"
+    stats.incr("build_failed")
     return
+
+  stats.incr("build_succeded")
 
   let fnames = build_docs(pname)
   log_debug "Generated $# html files" % $fnames.len
@@ -667,6 +676,7 @@ routes:
 
   get "/":
     log request
+    stats.incr("views")
     try:
       let top_pkg_names = top_keys(most_queried_packages, 5)
       log_debug "pkgs history len: $#" % $cache.pkgs_history.len
@@ -683,16 +693,19 @@ routes:
 
   get "/search":
     log request
+    stats.incr("views")
     let found_pkg_names = search_packages(@"query")
 
     var pkgs_list: seq[Pkg] = @[]
     for pn in found_pkg_names.keys():
       pkgs_list.add pkgs[pn]
 
+    stats.gauge("search_found_pkgs", pkgs_list.len)
     resp base_page(generate_pkg_list_page(pkgs_list))
 
   get "/pkg/@pkg_name/?":
     log request
+    stats.incr("views")
     let pname = normalize(@"pkg_name")
     if not pkgs.hasKey(pname):
       resp base_page "Package not found"
@@ -722,6 +735,7 @@ routes:
   post "/update_package":
     ## Create or update a package description
     log request
+    stats.incr("views")
     const required_fields = @["name", "url", "method", "tags", "description",
       "license", "web", "signatures", "authorized_keys"]
     var pkg_data: JsonNode
@@ -783,11 +797,13 @@ routes:
   get "/packages.json":
     ## Serve the packages list file
     log request
+    stats.incr("views")
     resp conf.packages_list_fname.readFile
 
   get "/docs/@pkg_name/?":
     ## Serve hosted docs for a package: summary page
     log request
+    stats.incr("views")
     let pname = normalize(@"pkg_name")
     if not pkgs.hasKey(pname):
       resp base_page("<p>Package not found</p>")
@@ -807,6 +823,7 @@ routes:
   get "/docs/@pkg_name/@a?/?@b?/?@c?/?@d?":
     ## Serve hosted docs for a package
     log request
+    stats.incr("views")
     let pname = normalize(@"pkg_name")
     if not pkgs.hasKey(pname):
       resp base_page("<p>Package not found</p>")
@@ -855,6 +872,7 @@ routes:
 
   get "/loader":
     log request
+    stats.incr("views")
     resp base_page(
       generate_loader_page()
     )
@@ -862,6 +880,7 @@ routes:
   get "/packages.xml":
     ## New and updated packages feed
     log request
+    stats.incr("views_rss")
     let baseurl = conf.public_baseurl
     let url = baseurl / "packages.xml"
 
@@ -896,6 +915,7 @@ routes:
 
   get "/stats":
     log request
+    stats.incr("views")
     resp base_page """
     <br/>
     <p>Runtime: $#</p>
@@ -904,6 +924,7 @@ routes:
 
   get "/github_trending":
     log request
+    stats.incr("views")
     resp github_trending_packages()
 
   # CI Routing
@@ -911,17 +932,20 @@ routes:
   get "/ci":
     ## CI summary
     log request
+    stats.incr("views")
     #@bottle.view('index')
     #refresh_build_num()
     discard
 
   get "/ci/install_report":
     log request
+    stats.incr("views")
     discard
 
   get "/ci/badges/@pkg_name/version.svg":
     ## Version badge
     log request
+    stats.incr("views")
     let pname = normalize(@"pkg_name")
     if not pkgs.hasKey(pname):
       resp base_page "Package not found"
@@ -947,6 +971,7 @@ routes:
   get "/ci/badges/@pkg_name/nimdevel/status.svg":
     ## Status badge
     log request
+    stats.incr("views")
     let pname = normalize(@"pkg_name")
     if not pkgs.hasKey(pname):
       resp base_page "Package not found"
@@ -972,6 +997,7 @@ routes:
   get "/ci/badges/@pkg_name/nimdevel/output.html":
     ## Build output
     log request
+    stats.incr("views")
     log_info "$#" % $request.ip
     let pname = normalize(@"pkg_name")
     if not pkgs.hasKey(pname):
@@ -1151,6 +1177,8 @@ proc run_github_packages_json_polling(poll_time_s: int) {.async.} =
       let new_pkg_raw = fetch_github_packages_json()
       if new_pkg_raw == conf.packages_list_fname.readFile:
         log_debug "No changes"
+        stats.gauge("packages_all_known", pkgs.len)
+        stats.gauge("packages_history", cache.pkgs_history.len)
         continue
 
       for pdata in new_pkg_raw.parseJson:
@@ -1169,6 +1197,9 @@ proc run_github_packages_json_polling(poll_time_s: int) {.async.} =
         let pname = item.name.normalize()
         if not pkgs.hasKey(pname):
           log_debug "$# is gone" % pname
+
+      stats.gauge("packages_all_known", pkgs.len)
+      stats.gauge("packages_history", cache.pkgs_history.len)
 
     except:
       error getCurrentExceptionMsg()
