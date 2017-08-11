@@ -680,11 +680,12 @@ routes:
     try:
       let top_pkg_names = top_keys(most_queried_packages, 5)
       log_debug "pkgs history len: $#" % $cache.pkgs_history.len
-      var new_pkg_names: seq[string] = @[]
-      for item in cache.pkgs_history:
-        new_pkg_names.add item.name
-        if new_pkg_names.len > 5:
-          break
+      # List 5 newest packages
+      let new_pkg_names: seq[string] =
+        if cache.pkgs_history.len > 5:
+          cache.pkgs_history[^5..^1].mapIt(it.name.normalize())
+        else:
+          cache.pkgs_history.mapIt(it.name.normalize())
 
       resp base_page(generate_home_page(top_pkg_names, new_pkg_names))
     except:
