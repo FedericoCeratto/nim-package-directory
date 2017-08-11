@@ -19,18 +19,20 @@ import asyncdispatch,
  tables,
  times
 
-from algorithm import sort, sorted, sortedByIt
+from algorithm import sort, sorted, sortedByIt, reversed
 from marshal import store, load
 from posix import onSignal, SIGINT, SIGTERM, getpid
 from times import epochTime
 
 #from nimblepkg import getTagsListRemote, getVersionList
 import jester,
-  sdnotify
+  sdnotify,
+  statsd_client
 
 import github,
   signatures,
   email,
+  friendly_timeinterval,
   persist
 
 
@@ -41,6 +43,7 @@ const
   github_tags_tpl = "https://api.github.com/repos/$#/tags"
   github_latest_version_tpl = "https://api.github.com/repos/$#/releases/latest"
   github_doc_index_tpl = "https://$#.github.io/$#/index.html"
+  github_repository_search_tpl = "https://api.github.com/search/repositories?q=language:nim+pushed:>$#&per_page=$#sort=$#&page=$#"
   github_readme_header = "Accept:application/vnd.github.v3.html\c\L"
   github_caching_time = 600
   github_packages_json_raw_url= "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json"
@@ -61,6 +64,7 @@ const
 
 let conf = load_conf()
 let github_token = "Authorization: token $#\c\L" % conf.github_token
+let stats = newStatdClient(prefix="nim_package_directory")
 
 # parse CLI opts
 
@@ -167,6 +171,7 @@ include "templates/doc_files_list.tmpl"
 include "templates/loader.tmpl"
 include "templates/rss.tmpl"
 include "templates/build_output.tmpl"
+include "templates/github_trending_pkg_list.tmpl"
 
 const
   success_badge = slurp "templates/success.svg"
@@ -416,6 +421,37 @@ proc fetch_github_versions(pkg: Pkg, owner_repo_name: string) =
 
     pkg["github_latest_version_time"] = newJString ""
 
+proc fetch_github_repository_stats(sorting="updated", pagenum=1, limit=200, initial_date: TimeInfo): seq[JsonNode] =
+  ## Fetch projects on GitHub
+  let date = initial_date.format("yyyy-MM-dd")
+  let q = github_repository_search_tpl % [date, $limit, sorting, $pagenum]
+  log_info "Searching GH repos: '$#'" % q
+  let query_res = getContent(q, extraHeaders=github_token).parseJson
+  if sorting == "updated":
+    return query_res["items"].elems.sortedByIt(it["updated_at"].str).reversed()
+  return query_res["items"].elems
+
+proc github_trending_packages(request: Request): string =
+  ## Trending GitHub packages
+  # TODO: filter packages in packages.json
+  # TODO: caching
+  let pkgs_list = fetch_github_repository_stats(
+    sorting="updated", pagenum=1, limit=20,
+    initial_date=getGmTime(getTime() - 14.days)
+  )
+  for p in pkgs_list:
+    try:
+      # 2017-07-21T12:48:35Z
+      let t = p["pushed_at"].str.parse("yyyy-MM-ddTHH:mm:ss")
+      let d = toFriendlyInterval(t.toTime, getTime(), approx=2)
+      p["update_age"] = newJString d
+    except:
+      p["update_age"] = newJString ""
+
+
+  let inner = generate_github_trending_pkg_list_page(pkgs_list)
+  return base_page(request, inner)
+
 
 # proc fetch_using_git(pname, url: string): bool =
 #   let repo_dir =  tmp_nimble_root_dir / pname
@@ -548,6 +584,7 @@ proc fetch_and_build_pkg_if_needed(pname: string) {.async.} =
       let elapsed = epochTime() - t0
       if elapsed > build_timeout_seconds:
         log_debug "timed out!"
+        stats.incr("build_timed_out")
         break
       log_debug "waiting already running build for $# $#s..." % [pname, $int(elapsed)]
       await sleepAsync 500
@@ -574,12 +611,18 @@ proc fetch_and_build_pkg_if_needed(pname: string) {.async.} =
   #if fetch_pkg_using_nimble(pname) == false:
 
   pkgs_doc_files[pname].building = true # lock
+  let t0 = epochTime()
   await fetch_and_build_pkg_using_nimble_old(pname)
+  let elapsed = epochTime() - t0
+  stats.gauge("build_time", elapsed)
   pkgs_doc_files[pname].building = false # unlock
 
   if pkgs_doc_files[pname].build_status != PkgBuildStatus.OK:
     log_debug "fetch_and_build_pkg_if_needed failed - skipping doc generation"
+    stats.incr("build_failed")
     return
+
+  stats.incr("build_succeded")
 
   let fnames = build_docs(pname)
   log_debug "Generated $# html files" % $fnames.len
@@ -637,14 +680,16 @@ routes:
 
   get "/":
     log request
+    stats.incr("views")
     try:
       let top_pkg_names = top_keys(most_queried_packages, 5)
       log_debug "pkgs history len: $#" % $cache.pkgs_history.len
-      var new_pkg_names: seq[string] = @[]
-      for item in cache.pkgs_history:
-        new_pkg_names.add item.name
-        if new_pkg_names.len > 5:
-          break
+      # List 5 newest packages
+      let new_pkg_names: seq[string] =
+        if cache.pkgs_history.len > 5:
+          cache.pkgs_history[^5..^1].mapIt(it.name.normalize())
+        else:
+          cache.pkgs_history.mapIt(it.name.normalize())
 
       resp base_page(request, generate_home_page(top_pkg_names, new_pkg_names))
     except:
@@ -653,18 +698,21 @@ routes:
 
   get "/search":
     log request
+    stats.incr("views")
     let found_pkg_names = search_packages(@"query")
 
     var pkgs_list: seq[Pkg] = @[]
     for pn in found_pkg_names.keys():
       pkgs_list.add pkgs[pn]
 
+    stats.gauge("search_found_pkgs", pkgs_list.len)
     let body = generate_search_box(@"query") &
                generate_pkg_list_page(pkgs_list)
     resp base_page(request, body)
 
   get "/pkg/@pkg_name/?":
     log request
+    stats.incr("views")
     let pname = normalize(@"pkg_name")
     if not pkgs.hasKey(pname):
       resp base_page(request, "Package not found")
@@ -694,6 +742,7 @@ routes:
   post "/update_package":
     ## Create or update a package description
     log request
+    stats.incr("views")
     const required_fields = @["name", "url", "method", "tags", "description",
       "license", "web", "signatures", "authorized_keys"]
     var pkg_data: JsonNode
@@ -755,11 +804,13 @@ routes:
   get "/packages.json":
     ## Serve the packages list file
     log request
+    stats.incr("views")
     resp conf.packages_list_fname.readFile
 
   get "/docs/@pkg_name/?":
     ## Serve hosted docs for a package: summary page
     log request
+    stats.incr("views")
     let pname = normalize(@"pkg_name")
     if not pkgs.hasKey(pname):
       resp base_page(request, "<p>Package not found</p>")
@@ -779,6 +830,7 @@ routes:
   get "/docs/@pkg_name/@a?/?@b?/?@c?/?@d?":
     ## Serve hosted docs for a package
     log request
+    stats.incr("views")
     let pname = normalize(@"pkg_name")
     if not pkgs.hasKey(pname):
       resp base_page(request, "<p>Package not found</p>")
@@ -827,6 +879,7 @@ routes:
 
   get "/loader":
     log request
+    stats.incr("views")
     resp base_page(request,
       generate_loader_page()
     )
@@ -834,6 +887,7 @@ routes:
   get "/packages.xml":
     ## New and updated packages feed
     log request
+    stats.incr("views_rss")
     let baseurl = conf.public_baseurl
     let url = baseurl / "packages.xml"
 
@@ -868,28 +922,37 @@ routes:
 
   get "/stats":
     log request
+    stats.incr("views")
     resp base_page(request, """
     <br/>
     <p>Runtime: $#</p>
     <p>Queried packages count: $#</p>
     """ % [$cpuTime(), $len(most_queried_packages)])
 
+  get "/github_trending":
+    log request
+    stats.incr("views")
+    resp github_trending_packages(request)
+
   # CI Routing
 
   get "/ci":
     ## CI summary
     log request
+    stats.incr("views")
     #@bottle.view('index')
     #refresh_build_num()
     discard
 
   get "/ci/install_report":
     log request
+    stats.incr("views")
     discard
 
   get "/ci/badges/@pkg_name/version.svg":
     ## Version badge
     log request
+    stats.incr("views")
     let pname = normalize(@"pkg_name")
     if not pkgs.hasKey(pname):
       resp base_page(request, "Package not found")
@@ -915,6 +978,7 @@ routes:
   get "/ci/badges/@pkg_name/nimdevel/status.svg":
     ## Status badge
     log request
+    stats.incr("views")
     let pname = normalize(@"pkg_name")
     if not pkgs.hasKey(pname):
       resp base_page(request, "Package not found")
@@ -940,6 +1004,7 @@ routes:
   get "/ci/badges/@pkg_name/nimdevel/output.html":
     ## Build output
     log request
+    stats.incr("views")
     log_info "$#" % $request.ip
     let pname = normalize(@"pkg_name")
     if not pkgs.hasKey(pname):
@@ -1119,6 +1184,8 @@ proc run_github_packages_json_polling(poll_time_s: int) {.async.} =
       let new_pkg_raw = fetch_github_packages_json()
       if new_pkg_raw == conf.packages_list_fname.readFile:
         log_debug "No changes"
+        stats.gauge("packages_all_known", pkgs.len)
+        stats.gauge("packages_history", cache.pkgs_history.len)
         continue
 
       for pdata in new_pkg_raw.parseJson:
@@ -1137,6 +1204,9 @@ proc run_github_packages_json_polling(poll_time_s: int) {.async.} =
         let pname = item.name.normalize()
         if not pkgs.hasKey(pname):
           log_debug "$# is gone" % pname
+
+      stats.gauge("packages_all_known", pkgs.len)
+      stats.gauge("packages_history", cache.pkgs_history.len)
 
     except:
       error getCurrentExceptionMsg()
