@@ -87,25 +87,19 @@
     <div class="tile tile-centered divided">
       <div class="tile-content">
         #if pkg.has_key("web"):
-        <a href="${pkg["web"].str}">
-          <button class="btn input-group-btn">
+          <a href="${pkg["web"].str}" class="btn input-group-btn">
             <i class="fa fa-globe"></i> Project website
-          </button>
-        </a>
+          </a>
         #end
         #if pkg.has_key("doc"):
-          <a href="${pkg["doc"].str}">
-            <button class="btn input-group-btn">
-              <i class="fa fa-book"></i> Docs
-            </button>
+          <a href="${pkg["doc"].str}" class="btn input-group-btn">
+            <i class="fa fa-book"></i> Docs
           </a>
         #end if
         #let url = pkg["url"].str
         #if url.startswith("https://github.com/") or url.startswith("http://github.com/") or url.startswith("git"):
-          <a href="/docs/${pkg["name"].str}">
-            <button class="btn input-group-btn">
-              <i class="fa fa-book"></i> Hosted docs
-            </button>
+          <a class="btn input-group-btn" href="/docs/${pkg["name"].str}">
+            <i class="fa fa-book"></i> Hosted docs
           </a>
         #end if
       </div>

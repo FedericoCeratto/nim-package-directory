@@ -13,31 +13,31 @@
 			<div class="panel-header">
 				<div class="panel-title">
 					<a href="/pkg/${pkg["name"].str}">${pkg["name"].str}</a>
-					<span class="version">v0.1.1</span>
+					<!-- TODO: Version info for latest version -->
+					<!-- <span class="version">v0.1.1</span> -->
 				</div>
 				<div class="package-description">${pkg["description"].str}</div>
 			</div>
-			<div class="panel-body">
+			<!-- TODO: Username, avatar, stargazers count, last update -->
+			<!-- <div class="panel-body">
 
 				<figure class="avatar avatar-xs person" data-initial="DP">
-					<!--<img src="img/avatar-1.png" />-->
+					<img src="img/avatar-1.png" />
 				</figure>
 				<span class="username">dom96</span>
 				<span class="stargazers"><i class="fa fa-star" title="Stargazers"></i>456</span>
 				<span class="stargazers"><i class="fa fa-clock-o" title="Last updated"></i>2 minutes ago</span>
-			</div>
+			</div> -->
 			<div class="panel-footer">
-				<button class="btn input-group-btn">
+				<a href="${pkg["url"].str}" class="btn input-group-btn">
 					<i class="fa fa-github"></i> Repo
-				</button>
-				<button class="btn input-group-btn">
+				</a>
+				<!-- <a class="btn input-group-btn">
 					<i class="fa fa-book"></i> Docs
-				</button>
-#if pkg.has_key("web"):
-				<a href="${pkg["web"].str}">
-					<button class="btn input-group-btn">
-						<i class="fa fa-globe"></i> Project Website
-					</button>
+				</a> -->
+#if pkg.has_key("web") and pkg["web"].str != pkg["url"].str:
+				<a href="${pkg["web"].str}" class="btn input-group-btn">
+					<i class="fa fa-globe"></i> Project Website
 				</a>
 #end if
 			</div>
