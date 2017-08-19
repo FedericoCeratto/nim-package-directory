@@ -171,7 +171,6 @@ include "templates/doc_files_list.tmpl"
 include "templates/loader.tmpl"
 include "templates/rss.tmpl"
 include "templates/build_output.tmpl"
-include "templates/github_trending_pkg_list.tmpl"
 
 const
   success_badge = slurp "templates/success.svg"
@@ -431,10 +430,11 @@ proc fetch_github_repository_stats(sorting="updated", pagenum=1, limit=200, init
     return query_res["items"].elems.sortedByIt(it["updated_at"].str).reversed()
   return query_res["items"].elems
 
-proc github_trending_packages(request: Request): string =
+proc github_trending_packages(request: Request): seq[JsonNode] =
   ## Trending GitHub packages
   # TODO: filter packages in packages.json
   # TODO: caching
+  # TODO: Dom: merge this into the procedure above ^
   let pkgs_list = fetch_github_repository_stats(
     sorting="updated", pagenum=1, limit=20,
     initial_date=getGmTime(getTime() - 14.days)
@@ -448,9 +448,7 @@ proc github_trending_packages(request: Request): string =
     except:
       p["update_age"] = newJString ""
 
-
-  let inner = generate_github_trending_pkg_list_page(pkgs_list)
-  return base_page(request, inner)
+  return pkgs_list
 
 
 # proc fetch_using_git(pname, url: string): bool =
@@ -691,7 +689,11 @@ routes:
         else:
           cache.pkgs_history.mapIt(it.name.normalize())
 
-      resp base_page(request, generate_home_page(top_pkg_names, new_pkg_names))
+      let github_trending = github_trending_packages(request)
+
+      let home = generate_home_page(top_pkg_names, new_pkg_names,
+                                    github_trending)
+      resp base_page(request, home)
     except:
       error getCurrentExceptionMsg()
       halt Http400
@@ -928,11 +930,6 @@ routes:
     <p>Runtime: $#</p>
     <p>Queried packages count: $#</p>
     """ % [$cpuTime(), $len(most_queried_packages)])
-
-  get "/github_trending":
-    log request
-    stats.incr("views")
-    resp github_trending_packages(request)
 
   # CI Routing
 

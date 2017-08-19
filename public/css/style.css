@@ -60,6 +60,16 @@ h4 > .fa {
   margin-bottom: 1rem;
 }
 
+h1, h2, h3, h4, h5, h6 {
+  /* TODO: Set this without !important, it's sloppy. */
+  margin-top: 2rem !important;
+}
+
+.search-box {
+  margin: 1.5rem 0;
+}
+
+
 /* GitHub readme */
 /* TODO: The anchors don't show up properly, see how it's done on Spectre's
    site */

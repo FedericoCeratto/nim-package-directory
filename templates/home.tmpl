@@ -2,7 +2,7 @@
 #proc generate_search_box(value=""): string =
 #  result = ""
 <div class="columns">
-  <div class="column col-12">
+  <div class="column col-12 search-box">
     <form action="/search" method="GET" role="search" class="input-group">
       <input class="form-input" name="query" placeholder="Find Nimble packages..." type="text" value="$value">
       <button type="submit" class="btn btn-primary input-group-btn">
@@ -13,10 +13,55 @@
 </div>
 #end
 #
-#proc generate_home_page(most_queried_packages_names, new_package_names: seq[string]): string =
+#proc generate_home_page(most_queried_packages_names, new_package_names: seq[string], github_trending: seq[JsonNode]): string =
 #  result = ""
 
 ${generate_search_box()}
+
+<h4><i class="fa fa-github"></i>Trending on GitHub</h4>
+<div class="columns">
+    # for i in 0 .. min(8, len(github_trending))-1:
+    # let pkg = github_trending[i]
+    <div class="column col-6">
+      <div class="panel package">
+        <div class="panel-header">
+          <div class="panel-title">
+            <a href="/pkg/${pkg["name"].str}">${pkg["name"].str}</a>
+            <!-- TODO: Latest version -->
+            <!-- <span class="version">v0.1.1</span> -->
+          </div>
+          <div class="package-description">
+            <!-- TODO: Description -->
+          </div>
+        </div>
+        <div class="panel-body">
+          <figure class="avatar avatar-xs person" data-initial="DP">
+            <img src="${pkg["owner"]["avatar_url"].str}" />
+          </figure>
+          <a class="username"
+             href="${pkg["owner"]["html_url"].str}">
+             ${pkg["owner"]["login"].str}
+          </a>
+          <span class="stargazers">
+            <i class="fa fa-star" title="Stargazers"></i>
+            ${pkg["stargazers_count"].getNum}
+          </span>
+          <span class="stargazers">
+            <i class="fa fa-clock-o" title="Last updated"></i>
+            ${pkg["update_age"].str}
+          </span>
+        </div>
+        <div class="panel-footer">
+          <a class="btn input-group-btn" href="${pkg["html_url"].str}">
+            <i class="fa fa-globe"></i> Project website
+          </a>
+        </div>
+      </div>
+    </div>
+    # end
+</div>
+
+
 <h4><i class="fa fa-fire"></i>Most queried</h4>
 <div class="columns">
     # for pname in most_queried_packages_names:
