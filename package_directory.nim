@@ -96,6 +96,7 @@ log_debug conf
 type
   ProcessError = object of Exception
   Pkg* = JsonNode
+  Pkgs* = TableRef[string, Pkg]
   strSeq = seq[string]
   PkgName = distinct string
   PkgBuildStatus {.pure.} = enum OK, Failed, Timeout
@@ -113,7 +114,7 @@ type
     title, desc, url, guid, pubDate: string
 
 # the pkg name is normalized
-var pkgs = newTable[string, Pkg]()
+var pkgs: Pkgs = newTable[string, Pkg]()
 var pkgs_doc_files = newTable[string, PkgDocMetadata]()
 
 # tag -> package name
@@ -430,15 +431,20 @@ proc fetch_github_repository_stats(sorting="updated", pagenum=1, limit=200, init
     return query_res["items"].elems.sortedByIt(it["updated_at"].str).reversed()
   return query_res["items"].elems
 
-proc github_trending_packages(request: Request): seq[JsonNode] =
+proc github_trending_packages(request: Request, pkgs: Pkgs): seq[JsonNode] =
   ## Trending GitHub packages
-  # TODO: filter packages in packages.json
   # TODO: caching
   # TODO: Dom: merge this into the procedure above ^
+  result = @[]
   let pkgs_list = fetch_github_repository_stats(
     sorting="updated", pagenum=1, limit=20,
     initial_date=getGmTime(getTime() - 14.days)
   )
+  var website_to_name = initTable[string, string]()
+  for it in pkgs.values:
+    if it.hasKey("web"):
+      website_to_name.add (it["web"].str, it["name"].str)
+
   for p in pkgs_list:
     try:
       # 2017-07-21T12:48:35Z
@@ -448,7 +454,14 @@ proc github_trending_packages(request: Request): seq[JsonNode] =
     except:
       p["update_age"] = newJString ""
 
-  return pkgs_list
+    let url = p["html_url"].str
+    if website_to_name.hasKey url:
+      # The package is known to Nimble - set the "official" package name
+      p["name"].str = website_to_name[url]
+      result.add p
+
+
+
 
 
 # proc fetch_using_git(pname, url: string): bool =
@@ -695,7 +708,7 @@ routes:
           else:
             log_debug "$# not found in package list" % pname
 
-      let github_trending = github_trending_packages(request)
+      let github_trending = github_trending_packages(request, pkgs)
 
       let home = generate_home_page(top_pkgs, new_pkgs,
                                     github_trending)
