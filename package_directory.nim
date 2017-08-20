@@ -680,18 +680,24 @@ routes:
     log request
     stats.incr("views")
     try:
-      let top_pkg_names = top_keys(most_queried_packages, 5)
+      var top_pkgs: seq[Pkg] = @[]
+      for pname in top_keys(most_queried_packages, 5):
+        if pkgs.hasKey(pname):
+          top_pkgs.add pkgs[pname]
+
       log_debug "pkgs history len: $#" % $cache.pkgs_history.len
       # List 5 newest packages
-      let new_pkg_names: seq[string] =
-        if cache.pkgs_history.len > 5:
-          cache.pkgs_history[^5..^1].mapIt(it.name.normalize())
-        else:
-          cache.pkgs_history.mapIt(it.name.normalize())
+      var new_pkgs: seq[Pkg] = @[]
+      for n in 1..min(cache.pkgs_history.len, 5):
+          let pname = cache.pkgs_history[^n].name.normalize()
+          if pkgs.hasKey(pname):
+            new_pkgs.add pkgs[pname]
+          else:
+            log_debug "$# not found in package list" % pname
 
       let github_trending = github_trending_packages(request)
 
-      let home = generate_home_page(top_pkg_names, new_pkg_names,
+      let home = generate_home_page(top_pkgs, new_pkgs,
                                     github_trending)
       resp base_page(request, home)
     except:

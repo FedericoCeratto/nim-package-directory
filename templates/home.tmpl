@@ -13,7 +13,7 @@
 </div>
 #end
 #
-#proc generate_home_page(most_queried_packages_names, new_package_names: seq[string], github_trending: seq[JsonNode]): string =
+#proc generate_home_page(most_queried_packages, new_packages: seq[Pkg], github_trending: seq[JsonNode]): string =
 #  result = ""
 
 ${generate_search_box()}
@@ -62,14 +62,52 @@ ${generate_search_box()}
 </div>
 
 
-<h4><i class="fa fa-fire"></i>Most queried</h4>
+<h4><i class="fa fa-fire"></i>New packages</h4>
 <div class="columns">
-    # for pname in most_queried_packages_names:
+    # for p in new_packages:
     <div class="column col-6">
       <div class="panel package">
         <div class="panel-header">
           <div class="panel-title">
-            <a href="/pkg/${pname}">${pname}</a>
+            <a href="/pkg/${p["name"].str}">${p["name"].str}</a>
+            <!-- TODO: Latest version -->
+            <!-- <span class="version">v0.1.1</span> -->
+          </div>
+          <div class="package-description">
+            <!-- TODO: Description -->
+          </div>
+        </div>
+        <div class="panel-body">
+          <!-- TODO: The info below -->
+          <!-- <figure class="avatar avatar-xs person" data-initial="DP">
+            <img src="img/avatar-1.png" />
+          </figure>
+          <span class="username">dom96</span>
+          <span class="stargazers"><i class="fa fa-star" title="Stargazers"></i>456</span>
+          <span class="stargazers"><i class="fa fa-clock-o" title="Last updated"></i>2 minutes ago</span> -->
+        </div>
+        <div class="panel-footer">
+          <!-- TODO: Links for these buttons. -->
+          <!-- <a class="btn input-group-btn">
+            <i class="fa fa-github"></i> Repo
+          </a>
+          <a class="btn input-group-btn">
+            <i class="fa fa-book"></i> Docs
+          </a> -->
+        </div>
+      </div>
+    </div>
+    # end
+</div>
+
+<h4><i class="fa fa-fire"></i>Most queried</h4>
+<div class="columns">
+    # for p in most_queried_packages:
+    <div class="column col-6">
+      <div class="panel package">
+        <div class="panel-header">
+          <div class="panel-title">
+            <a href="/pkg/${p["name"].str}">${p["name"].str}</a>
             <!-- TODO: Latest version -->
             <!-- <span class="version">v0.1.1</span> -->
           </div>
