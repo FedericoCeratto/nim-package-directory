@@ -160,6 +160,10 @@ proc load_cache(): Cache =
     result.save()
     log_debug "new cache created"
 
+# volatile caches
+
+var volatile_cache_github_trending_last_update_time = 0
+var volatile_cache_github_trending: seq[JsonNode] = @[]
 
 
 # HTML templates
@@ -433,8 +437,12 @@ proc fetch_github_repository_stats(sorting="updated", pagenum=1, limit=200, init
 
 proc github_trending_packages(request: Request, pkgs: Pkgs): seq[JsonNode] =
   ## Trending GitHub packages
-  # TODO: caching
   # TODO: Dom: merge this into the procedure above ^
+
+  if volatile_cache_github_trending_last_update_time +
+      github_caching_time > epochTime().int:
+    return volatile_cache_github_trending
+
   result = @[]
   let pkgs_list = fetch_github_repository_stats(
     sorting="updated", pagenum=1, limit=20,
@@ -460,6 +468,8 @@ proc github_trending_packages(request: Request, pkgs: Pkgs): seq[JsonNode] =
       p["name"].str = website_to_name[url]
       result.add p
 
+  volatile_cache_github_trending = result
+  volatile_cache_github_trending_last_update_time = epochTime().int
 
 
 
