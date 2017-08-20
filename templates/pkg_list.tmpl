@@ -2,13 +2,45 @@
 #proc generate_pkg_list_page(pkgs: seq[Pkg]): string =
 #  result = ""
 
+<div class="columns">
+<div class="column col-12">
+	<h4>${pkgs.len} packages found</h4>
+</div>
+
 #for pkg in pkgs:
-			<div class="row">
-  			<div class="col-lg-8">
-					<a href="/pkg/${pkg["name"].str}"><h4>${pkg["name"].str}</h4></a>
-     			<p class="lead">${pkg["description"].str}</p>
-#if pkg.has_key("web"):
-		    	<a class="button" href="${pkg["web"].str}">Project Website</a>
+	<div class="column col-6">
+		<div class="panel package">
+			<div class="panel-header">
+				<div class="panel-title">
+					<a href="/pkg/${pkg["name"].str}">${pkg["name"].str}</a>
+					<!-- TODO: Version info for latest version -->
+					<!-- <span class="version">v0.1.1</span> -->
+				</div>
+				<div class="package-description">${pkg["description"].str}</div>
+			</div>
+			<!-- TODO: Username, avatar, stargazers count, last update -->
+			<!-- <div class="panel-body">
+
+				<figure class="avatar avatar-xs person" data-initial="DP">
+					<img src="img/avatar-1.png" />
+				</figure>
+				<span class="username">dom96</span>
+				<span class="stargazers"><i class="fa fa-star" title="Stargazers"></i>456</span>
+				<span class="stargazers"><i class="fa fa-clock-o" title="Last updated"></i>2 minutes ago</span>
+			</div> -->
+			<div class="panel-footer">
+				<a href="${pkg["url"].str}" class="btn input-group-btn">
+					<i class="fa fa-github"></i> Repo
+				</a>
+				<!-- <a class="btn input-group-btn">
+					<i class="fa fa-book"></i> Docs
+				</a> -->
+#if pkg.has_key("web") and pkg["web"].str != pkg["url"].str:
+				<a href="${pkg["web"].str}" class="btn input-group-btn">
+					<i class="fa fa-globe"></i> Project Website
+				</a>
 #end if
-      	</div>
+			</div>
+		</div>
+	</div>
 #end for

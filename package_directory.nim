@@ -52,7 +52,11 @@ const
   sdnotify_ping_time_s = 15
   nim_bin_path = "/usr/bin/nim"
   nimble_bin_path = "/usr/bin/nimble"
-  tmp_nimble_root_dir = "/dev/shm/nim_package_dir"
+  tmp_nimble_root_dir =
+    when defined(macosx):
+      "/tmp/nim_package_dir"
+    else:
+      "/dev/shm/nim_package_dir"
   build_expiry_time = 300.Time # 5 mins
   cache_fn = ".cache.json"
 
@@ -167,7 +171,6 @@ include "templates/doc_files_list.tmpl"
 include "templates/loader.tmpl"
 include "templates/rss.tmpl"
 include "templates/build_output.tmpl"
-include "templates/github_trending_pkg_list.tmpl"
 
 const
   success_badge = slurp "templates/success.svg"
@@ -427,10 +430,11 @@ proc fetch_github_repository_stats(sorting="updated", pagenum=1, limit=200, init
     return query_res["items"].elems.sortedByIt(it["updated_at"].str).reversed()
   return query_res["items"].elems
 
-proc github_trending_packages(): string =
+proc github_trending_packages(request: Request): seq[JsonNode] =
   ## Trending GitHub packages
   # TODO: filter packages in packages.json
   # TODO: caching
+  # TODO: Dom: merge this into the procedure above ^
   let pkgs_list = fetch_github_repository_stats(
     sorting="updated", pagenum=1, limit=20,
     initial_date=getGmTime(getTime() - 14.days)
@@ -444,9 +448,7 @@ proc github_trending_packages(): string =
     except:
       p["update_age"] = newJString ""
 
-
-  let inner = generate_github_trending_pkg_list_page(pkgs_list)
-  return base_page(inner)
+  return pkgs_list
 
 
 # proc fetch_using_git(pname, url: string): bool =
@@ -687,7 +689,11 @@ routes:
         else:
           cache.pkgs_history.mapIt(it.name.normalize())
 
-      resp base_page(generate_home_page(top_pkg_names, new_pkg_names))
+      let github_trending = github_trending_packages(request)
+
+      let home = generate_home_page(top_pkg_names, new_pkg_names,
+                                    github_trending)
+      resp base_page(request, home)
     except:
       error getCurrentExceptionMsg()
       halt Http400
@@ -702,14 +708,16 @@ routes:
       pkgs_list.add pkgs[pn]
 
     stats.gauge("search_found_pkgs", pkgs_list.len)
-    resp base_page(generate_pkg_list_page(pkgs_list))
+    let body = generate_search_box(@"query") &
+               generate_pkg_list_page(pkgs_list)
+    resp base_page(request, body)
 
   get "/pkg/@pkg_name/?":
     log request
     stats.incr("views")
     let pname = normalize(@"pkg_name")
     if not pkgs.hasKey(pname):
-      resp base_page "Package not found"
+      resp base_page(request, "Package not found")
 
     most_queried_packages.inc pname
     let
@@ -731,7 +739,7 @@ routes:
         pkg.fetch_github_versions(owner_repo_name)
         pkg.fetch_github_doc_pages(owner, repo_name)
 
-    resp base_page(generate_pkg_page(pkg))
+    resp base_page(request, generate_pkg_page(pkg))
 
   post "/update_package":
     ## Create or update a package description
@@ -793,7 +801,7 @@ routes:
     save_packages()
     log_info if pkg_already_exists: "Updated existing package $#" % name
       else: "Added new package $#" % name
-    resp base_page("OK")
+    resp base_page(request, "OK")
 
   get "/packages.json":
     ## Serve the packages list file
@@ -807,7 +815,7 @@ routes:
     stats.incr("views")
     let pname = normalize(@"pkg_name")
     if not pkgs.hasKey(pname):
-      resp base_page("<p>Package not found</p>")
+      resp base_page(request, "<p>Package not found</p>")
 
     most_queried_packages.inc pname
     let pkg = pkgs[pname]
@@ -816,7 +824,7 @@ routes:
     await fetch_and_build_pkg_if_needed(pname)
 
     # Show files summary
-    resp base_page(
+    resp base_page(request,
       generate_doc_files_list_page(pname, pkgs_doc_files[pname])
     )
 
@@ -827,7 +835,7 @@ routes:
     stats.incr("views")
     let pname = normalize(@"pkg_name")
     if not pkgs.hasKey(pname):
-      resp base_page("<p>Package not found</p>")
+      resp base_page(request, "<p>Package not found</p>")
 
     most_queried_packages.inc pname
     let pkg = pkgs[pname]
@@ -860,21 +868,21 @@ routes:
     let fn = pkg_root_dir / doc_path
     if not existsFile(fn):
       log_info "serving $# - not found" % fn
-      resp base_page """
+      resp base_page(request, """
         <p>Sorry, that file does not exists.
         <a href="/pkg/$#">Go back to $#</a>
         </p>
-        """ % [pname, pname]
+        """ % [pname, pname])
 
     # Serve doc file
     let head = """<h4>Doc files for <a href="/pkg/$#">$#</a></h4>""" % [pname, pname]
     let page = head & fn.readFile()
-    resp base_page(page)
+    resp base_page(request, page)
 
   get "/loader":
     log request
     stats.incr("views")
-    resp base_page(
+    resp base_page(request,
       generate_loader_page()
     )
 
@@ -917,16 +925,11 @@ routes:
   get "/stats":
     log request
     stats.incr("views")
-    resp base_page """
+    resp base_page(request, """
     <br/>
     <p>Runtime: $#</p>
     <p>Queried packages count: $#</p>
-    """ % [$cpuTime(), $len(most_queried_packages)]
-
-  get "/github_trending":
-    log request
-    stats.incr("views")
-    resp github_trending_packages()
+    """ % [$cpuTime(), $len(most_queried_packages)])
 
   # CI Routing
 
@@ -949,7 +952,7 @@ routes:
     stats.incr("views")
     let pname = normalize(@"pkg_name")
     if not pkgs.hasKey(pname):
-      resp base_page "Package not found"
+      resp base_page(request, "Package not found")
 
     most_queried_packages.inc pname
     await fetch_and_build_pkg_if_needed(pname)
@@ -975,7 +978,7 @@ routes:
     stats.incr("views")
     let pname = normalize(@"pkg_name")
     if not pkgs.hasKey(pname):
-      resp base_page "Package not found"
+      resp base_page(request, "Package not found")
 
     most_queried_packages.inc pname
     await fetch_and_build_pkg_if_needed(pname)
@@ -1002,14 +1005,14 @@ routes:
     log_info "$#" % $request.ip
     let pname = normalize(@"pkg_name")
     if not pkgs.hasKey(pname):
-      resp base_page "Package not found"
+      resp base_page(request, "Package not found")
 
     most_queried_packages.inc pname
     await fetch_and_build_pkg_if_needed(pname)
     try:
       let outp = pkgs_doc_files[pname].build_output
       let build_output = translate_term_colors(outp)
-      resp base_page(generate_build_output_page(
+      resp base_page(request, generate_build_output_page(
         pname,
         build_output,
         pkgs_doc_files[pname].build_time,

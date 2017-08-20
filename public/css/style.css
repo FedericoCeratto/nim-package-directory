@@ -1,0 +1,89 @@
+.section-header {
+  background-color: #f5f5f5;
+}
+
+.navbar-logo {
+  padding-right: 1.5rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+h4 > .fa {
+  padding-right: 1rem;
+}
+
+.person {
+  background-color: #5764c6;
+}
+
+.panel.package .panel-title > .version {
+  font-size: 1rem;
+  padding-left: 0.5rem;
+}
+
+.panel.package > .panel-body > .stargazers {
+  padding-left: 0.5rem;
+}
+
+.panel.package > .panel-body > .stargazers > .fa {
+  padding-right: 0.5rem;
+}
+
+.panel.package .package-description {
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+.empty {
+  margin-top: 2rem;
+  margin-bottom: 2rem;
+}
+
+.owner {
+  margin-top: -1.5rem;
+  display: block;
+  margin-bottom: 1rem;
+}
+
+#require-tile {
+  margin-top: 2rem;
+  margin-bottom: 4rem;
+}
+
+.divided {
+  border-bottom: 1px solid #e7e7e7;
+  padding: 0.6rem 0.2rem;
+}
+
+.divided a {
+  margin-bottom: 1rem;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  /* TODO: Set this without !important, it's sloppy. */
+  margin-top: 2rem !important;
+}
+
+.search-box {
+  margin: 1.5rem 0;
+}
+
+
+/* GitHub readme */
+/* TODO: The anchors don't show up properly, see how it's done on Spectre's
+   site */
+
+.anchor {
+  height: 0;
+  margin-left: -1em;
+  overflow: hidden;
+  position: absolute;
+  width: 0;
+}
+.anchor:focus,
+.anchor:hover {
+  height: auto;
+  text-decoration: none;
+  width: auto;
+}
