@@ -49,7 +49,7 @@ const
   github_packages_json_raw_url= "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json"
   github_packages_json_polling_time_s = 10 * 60
   git_bin_path = "/usr/bin/git"
-  sdnotify_ping_time_s = 15
+  sdnotify_ping_time_s = 1
   nim_bin_path = "/usr/bin/nim"
   nimble_bin_path = "/usr/bin/nimble"
   tmp_nimble_root_dir =
@@ -99,15 +99,17 @@ type
   Pkgs* = TableRef[string, Pkg]
   strSeq = seq[string]
   PkgName = distinct string
-  PkgBuildStatus {.pure.} = enum OK, Failed, Timeout
+  BuildStatus {.pure.} = enum OK, Failed, Timeout
   PkgDocMetadata = ref object of RootObj
     fnames: strSeq
     building: bool
     build_time: Time
     expire_time: Time
     last_commitish: string
+    build_status: BuildStatus
     build_output: string
-    build_status: PkgBuildStatus
+    doc_build_status: BuildStatus
+    doc_build_output: string
     version: string
 
   RssItem = object
@@ -115,6 +117,7 @@ type
 
 # the pkg name is normalized
 var pkgs: Pkgs = newTable[string, Pkg]()
+type PkgsDocFilesTable = Table[string, PkgDocMetadata]
 var pkgs_doc_files = newTable[string, PkgDocMetadata]()
 
 # tag -> package name
@@ -178,8 +181,10 @@ include "templates/rss.tmpl"
 include "templates/build_output.tmpl"
 
 const
-  success_badge = slurp "templates/success.svg"
-  fail_badge = slurp "templates/fail.svg"
+  build_success_badge = slurp "templates/success.svg"
+  build_fail_badge = slurp "templates/fail.svg"
+  doc_success_badge = slurp "templates/doc_success.svg"
+  doc_fail_badge = slurp "templates/doc_fail.svg"
   version_badge_tpl = slurp template_path / "version-template-blue.svg"
 
 # proc setup_seccomp() =
@@ -298,7 +303,7 @@ type RunOutput = tuple[exit_code: int, elapsed: float, output: string]
 
 proc run_process(bin_path, desc, work_dir: string,
     timeout: int, log_output: bool,
-    args: varargs[string, `$`]): string {.discardable.} =
+    args: varargs[string, `$`]): (bool, string) {.discardable.} =
   ## Run command with timeout
   # TODO: async
 
@@ -306,28 +311,26 @@ proc run_process(bin_path, desc, work_dir: string,
 
   var p = startProcess(
     bin_path, args=args,
-    workingDir=work_dir
+    workingDir=work_dir,
+    options={poStdErrToStdOut}
   )
-  if p.waitForExit(timeout=timeout * 1000) == 0:
-    log_debug "$# successful" % desc
-    let stdout_str = p.outputStream().readAll()
-    if log_output:
-      if stdout_str.len > 0:
-        log_debug "Stdout: ---\n$#---" % stdout_str
-      let stderr_str = p.errorStream().readAll()
-      if stderr_str.len > 0:
-        log_debug "Stderr: ---\n$#---" % stderr_str
-    return stdout_str
+  let exit_val = p.waitForExit(timeout=timeout * 1000)
+  let stdout_str = p.outputStream().readAll()
 
-  error "$# failed" % desc
-  error "Stdout: ---\n$#---" % p.outputStream().readAll()
-  error "Stderr: ---\n$#---" % p.errorStream().readAll()
-  raise newException(ProcessError, "$# failed" % desc)
+  if log_output or (exit_val != 0):
+    if stdout_str.len > 0:
+      log_debug "Stdout: ---\n$#---" % stdout_str
+
+  if exit_val == 0:
+    log_debug "$# successful" % desc
+  else:
+    error "run_process: $# failed, exit value: $#" % [desc, $exit_val]
+  return ((exit_val == 0), stdout_str)
 
 proc run_process2(bin_path, desc, work_dir: string,
     timeout: int, log_output: bool,
     args: seq[string]): Future[RunOutput] {.async.} =
-  ## Run command with timeout
+  ## Run command asyncronously with timeout
   let
     t0 = epochTime()
     p = startProcess(
@@ -339,7 +342,7 @@ proc run_process2(bin_path, desc, work_dir: string,
     pid = p.processID()
 
   var exit_code = 0
-  var output = ""
+  var sleep_time_ms = 50
   while true:
     let elapsed = epochTime() - t0
     if elapsed > timeout.float:
@@ -348,17 +351,14 @@ proc run_process2(bin_path, desc, work_dir: string,
       exit_code = -2
       break
 
-    let new_output = p.outputStream().readAll()
-    output.add new_output
-    for line in new_output.splitLines():
-      log_debug "$#>>> $#" % [$pid, line]
-
     exit_code = p.peekExitCode()
     case exit_code:
     of -1:
       # -1: still running, wait
-      log_debug "waiting $#..." % $pid
-      await sleepAsync 300
+      # log_debug "waiting command thread $#..." % $pid
+      await sleepAsync sleep_time_ms
+      if sleep_time_ms < 1000:
+        sleep_time_ms *= 2
 
     of 0:
       discard p.waitForExit()
@@ -369,6 +369,13 @@ proc run_process2(bin_path, desc, work_dir: string,
       break
 
   let elapsed = epochTime() - t0
+
+  var output = ""
+  let new_output = p.outputStream().readAll()
+  output.add new_output
+  for line in new_output.splitLines():
+    log_debug "$#>>> $#" % [$pid, line]
+
   return (exit_code, elapsed, output)
 
 
@@ -511,13 +518,13 @@ proc fetch_and_build_pkg_using_nimble_old(pname: string) {.async.} =
       @["install", $pname, "--nimbleDir=$#" % tmp_dir, "-y", "--debug"],
     )
 
-  let build_status: PkgBuildStatus =
+  let build_status: BuildStatus =
     if po.exit_code == 0:
-      PkgBuildStatus.OK
+      BuildStatus.OK
     elif po.exit_code == -2:
-      PkgBuildStatus.Timeout
+      BuildStatus.Timeout
     else:
-      PkgBuildStatus.Failed
+      BuildStatus.Failed
 
   log_debug "Setting status ", build_status
 
@@ -572,21 +579,41 @@ proc locate_pkg_root_dir(pname: string): string =
 
   raise newException(Exception, "Root dir for $# not found" % pname)
 
-proc build_docs(pname: string): strSeq =
+proc build_docs(pname: string) {.async.} =
   ## Build docs
-  result = @[]
   let pkg_root_dir = locate_pkg_root_dir(pname)
   log_debug "Walking ", pkg_root_dir
   #for fname in pkg_root_dir.walkDirRec(filter={pcFile}): # Bug in walkDirRec
+  var all_output = ""
+  var generated_doc_fnames: seq[string] = @[]
+
+  var input_fnames: seq[string] = @[]
   for fname in pkg_root_dir.walkDirRec():
-    #log_debug "Walking ", fname
-    if not fname.endswith(".nim"):
-      continue
+    if fname.endswith(".nim"):
+      input_fnames.add fname
+
+  for fname in input_fnames:
     log_debug "running nim doc for $#" % fname
-    run_process(nim_bin_path, "nim doc", pkg_root_dir, 60, true,
-      "doc", fname)
-    result.add fname[pkg_root_dir.len..^1][1..^4] & "html"
-    log_debug "adding ", fname[pkg_root_dir.len..^1][1..^4] & "html"
+    all_output.add "\n -- $# --\n" % fname
+
+    let po = await run_process2(
+      nim_bin_path,
+      "nim doc",
+      pkg_root_dir,
+      2,
+      true,
+      @["doc", fname],
+    )
+    all_output.add po.output
+    if po.exit_code == 0:
+      generated_doc_fnames.add fname[pkg_root_dir.len..^1][1..^4] & "html"
+      log_debug "adding ", fname[pkg_root_dir.len..^1][1..^4] & "html"
+
+  pkgs_doc_files[pname].doc_build_output = all_output
+  pkgs_doc_files[pname].fnames = generated_doc_fnames
+  pkgs_doc_files[pname].doc_build_status =
+    if (input_fnames.len == generated_doc_fnames.len): BuildStatus.OK
+    else: BuildStatus.Failed
 
 proc fetch_and_build_pkg_if_needed(pname: string) {.async.} =
   ## Fetch package and build docs
@@ -594,13 +621,11 @@ proc fetch_and_build_pkg_if_needed(pname: string) {.async.} =
 
   # PkgDocMetadata state machine: nothing -> building:true <-> building:false
   if pkgs_doc_files.hasKey(pname):
-
-    if pkgs_doc_files[pname].expire_time > getTime():
-      # No need to rebuild yet
-      return
+    # A build has been already done or is currently running.
 
     # Wait on any existing pkg building task to finish
     let t0 = epochTime()
+    var sleep_time_ms = 50
     while pkgs_doc_files[pname].building == true:
       let elapsed = epochTime() - t0
       if elapsed > build_timeout_seconds:
@@ -608,7 +633,9 @@ proc fetch_and_build_pkg_if_needed(pname: string) {.async.} =
         stats.incr("build_timed_out")
         break
       log_debug "waiting already running build for $# $#s..." % [pname, $int(elapsed)]
-      await sleepAsync 500
+      await sleepAsync sleep_time_ms
+      if sleep_time_ms < 2000:
+        sleep_time_ms *= 2
 
     if pkgs_doc_files[pname].expire_time > getTime():
       # No need to rebuild yet
@@ -621,9 +648,10 @@ proc fetch_and_build_pkg_if_needed(pname: string) {.async.} =
       expire_time: getTime() + build_expiry_time,
       fnames: @[],
       building: true,
-      )
+      build_status: BuildStatus.Failed,
+      doc_build_status: BuildStatus.Failed,
+    )
     pkgs_doc_files[pname] = pm
-
 
   # Fetch or update pkg
   let url = pkgs[pname]["url"].str
@@ -638,16 +666,21 @@ proc fetch_and_build_pkg_if_needed(pname: string) {.async.} =
   stats.gauge("build_time", elapsed)
   pkgs_doc_files[pname].building = false # unlock
 
-  if pkgs_doc_files[pname].build_status != PkgBuildStatus.OK:
+  if pkgs_doc_files[pname].build_status != BuildStatus.OK:
     log_debug "fetch_and_build_pkg_if_needed failed - skipping doc generation"
     stats.incr("build_failed")
     return
 
   stats.incr("build_succeded")
 
-  let fnames = build_docs(pname)
-  log_debug "Generated $# html files" % $fnames.len
-  pkgs_doc_files[pname].fnames = fnames
+  await build_docs(pname)  # this can raise
+  #try:
+  #  let fnames = 
+  #  log_debug "Generated $# html files" % $fnames.len
+  #  pkgs_doc_files[pname].fnames = fnames
+  #except:
+  #  log_info "Doc build failed"
+  #  pkgs_doc_files[pname].fnames = @[]
 
   #pkgs_doc_files[pname].last_commitish = commitish
   if pkgs[pname].hasKey("github_latest_version"):
@@ -1010,21 +1043,57 @@ routes:
       resp base_page(request, "Package not found")
 
     most_queried_packages.inc pname
+
+    # This might start a build here and populate pkgs_doc_files[pname]
+    # or fail before setting pkgs_doc_files or not run at all
     await fetch_and_build_pkg_if_needed(pname)
+
     let md =
       try:
         pkgs_doc_files[pname]
       except KeyError:
+        log_info "missing pname, this is a bug"
         halt Http400
         nil
+
     let badge =
       case md.build_status
-      of PkgBuildStatus.OK:
-        success_badge
-      of PkgBuildStatus.Failed:
-        fail_badge
-      of PkgBuildStatus.Timeout:
-        fail_badge
+      of BuildStatus.OK:
+        build_success_badge
+      of BuildStatus.Failed:
+        build_fail_badge
+      of BuildStatus.Timeout:
+        build_fail_badge
+    resp(badge, contentType = "image/svg+xml")
+
+  get "/ci/badges/@pkg_name/nimdevel/docstatus.svg":
+    ## Doc build status badge
+    log request
+    stats.incr("views")
+    let pname = normalize(@"pkg_name")
+    if not pkgs.hasKey(pname):
+      resp base_page(request, "Package not found")
+
+    most_queried_packages.inc pname
+
+    await fetch_and_build_pkg_if_needed(pname)
+
+    let md =
+      try:
+        pkgs_doc_files[pname]
+      except KeyError:
+        log_info "missing pname, this is a bug"
+        halt Http400
+        nil
+
+    let badge =
+      case md.doc_build_status
+      of BuildStatus.OK:
+        doc_success_badge
+      of BuildStatus.Failed:
+        doc_fail_badge
+      of BuildStatus.Timeout:
+        doc_fail_badge
     resp(badge, contentType = "image/svg+xml")
 
   get "/ci/badges/@pkg_name/nimdevel/output.html":
@@ -1044,6 +1113,29 @@ routes:
       resp base_page(request, generate_build_output_page(
         pname,
         build_output,
+        pkgs_doc_files[pname].build_time,
+        pkgs_doc_files[pname].expire_time,
+      ))
+    except KeyError:
+      halt Http400
+
+  get "/ci/badges/@pkg_name/nimdevel/doc_build_output.html":
+    ## Doc build output
+    log request
+    stats.incr("views")
+    log_info "$#" % $request.ip
+    let pname = normalize(@"pkg_name")
+    if not pkgs.hasKey(pname):
+      resp base_page(request, "Package not found")
+
+    most_queried_packages.inc pname
+    await fetch_and_build_pkg_if_needed(pname)
+    try:
+      let outp = pkgs_doc_files[pname].doc_build_output
+      let doc_build_output = translate_term_colors(outp)
+      resp base_page(request, generate_build_output_page(
+        pname,
+        doc_build_output,
         pkgs_doc_files[pname].build_time,
         pkgs_doc_files[pname].expire_time,
       ))
@@ -1185,11 +1277,14 @@ proc start_nim_commit_polling(poll_time: TimeInterval) {.async.} =
 
 proc run_systemd_sdnotify_pinger(ping_time_s: int) {.async.} =
   ## Ping systemd watchdog using sd_notify
-  const msg = "NOTIFY_SOCKET env var not found - disabling watchdog pinger"
+  const msg = "NOTIFY_SOCKET env var not found - pinging to logfile"
   if not existsEnv("NOTIFY_SOCKET"):
     log_info msg
     echo msg
-    return
+    while true:
+      log_debug "*ping*"
+      await sleepAsync ping_time_s * 1000
+    # never break
 
   let sd = newSDNotify()
   sd.notify_ready()

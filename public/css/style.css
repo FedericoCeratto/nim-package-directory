@@ -87,3 +87,9 @@ h1, h2, h3, h4, h5, h6 {
   text-decoration: none;
   width: auto;
 }
+
+img.slickbadge {
+  width: 96px;
+  height: 20px;
+  background: url(/img/loading.gif) 50% no-repeat;
+}
