@@ -1,0 +1,2 @@
+package_directory usr/bin
+public var/lib/nim_package_directory

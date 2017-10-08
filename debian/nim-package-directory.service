@@ -1,0 +1,49 @@
+# nim-package-directory systemd target
+
+[Unit]
+Description=nim-package-directory
+Documentation=man:nim-package-directory
+Documentation=https://github.com/FedericoCeratto/nim-package-directory
+After=network.target httpd.service squid.service nfs-server.service mysqld.service named.service postfix.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/package_directory
+TimeoutStopSec=10
+KillMode=mixed
+KillSignal=SIGTERM
+
+User=nim-package-directory
+Restart=always
+RestartSec=2s
+LimitNOFILE=65536
+
+WorkingDirectory=/var/lib/nim_package_directory
+WatchdogSec=30s
+
+# Hardening
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+SystemCallFilter=~@cpu-emulation @debug @keyring @module @mount @obsolete @raw-io @resources @clock @debug @keyring @mount @privileged @reboot @setuid @swap @memlock
+SystemCallErrorNumber=EPERM
+# ipc, signal  are needed
+
+ProtectSystem=strict
+PrivateDevices=yes
+PrivateUsers=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectKernelModules=true
+ProtectKernelTunables=yes
+
+StandardOutput=syslog+console
+StandardError=syslog+console
+
+ReadWriteDirectories=-/proc/self
+ReadWriteDirectories=-/var/run
+ReadWriteDirectories=-/var/lib/nim_package_directory
+
+
+[Install]
+WantedBy=multi-user.target

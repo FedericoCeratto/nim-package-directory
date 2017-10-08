@@ -1,0 +1,13 @@
+#!/usr/bin/make -f
+export DH_VERBOSE=1
+# hardened using nim.cfg
+
+%:
+	dh $@ --with systemd
+
+override_dh_auto_build:
+	#nim c -d:ssl -d:systemd -d:release -x:on -a:on package_directory
+	nim c -d:ssl -d:systemd package_directory
+
+override_dh_auto_test:
+	true
