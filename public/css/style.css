@@ -93,3 +93,13 @@ img.slickbadge {
   height: 20px;
   background: url(/img/loading.gif) 50% no-repeat;
 }
+
+div.doc_build_success {
+  border-left: 4px solid #aaffaa;
+  padding-left: .8em;
+}
+
+div.doc_build_fail {
+  border-left: 4px solid #ff9999;
+  padding-left: .8em;
+}

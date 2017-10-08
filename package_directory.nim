@@ -105,7 +105,8 @@ type
   Pkgs* = TableRef[string, Pkg]
   strSeq = seq[string]
   PkgName = distinct string
-  BuildStatus {.pure.} = enum OK, Failed, Timeout
+  BuildStatus {.pure.} = enum OK, Failed, Timeout, Running
+  DocBuildOut = seq[(bool, string, string)] # success_flag, filename, output
   PkgDocMetadata = ref object of RootObj
     fnames: strSeq
     building: bool
@@ -115,7 +116,7 @@ type
     build_status: BuildStatus
     build_output: string
     doc_build_status: BuildStatus
-    doc_build_output: string
+    doc_build_output: DocBuildOut
     version: string
 
   RssItem = object
@@ -189,8 +190,10 @@ include "templates/build_output.tmpl"
 const
   build_success_badge = slurp "templates/success.svg"
   build_fail_badge = slurp "templates/fail.svg"
+  build_running_badge = slurp "templates/build_running.svg"
   doc_success_badge = slurp "templates/doc_success.svg"
   doc_fail_badge = slurp "templates/doc_fail.svg"
+  doc_running_badge = slurp "templates/doc_running.svg"
   version_badge_tpl = slurp template_path / "version-template-blue.svg"
 
 # proc setup_seccomp() =
@@ -379,8 +382,9 @@ proc run_process2(bin_path, desc, work_dir: string,
   var output = ""
   let new_output = p.outputStream().readAll()
   output.add new_output
+
   for line in new_output.splitLines():
-    log_debug "$#>>> $#" % [$pid, line]
+    log_debug "[$#] $#> $#" % [$pid, $exit_code, line]
 
   return (exit_code, elapsed, output)
 
@@ -590,7 +594,7 @@ proc build_docs(pname: string) {.async.} =
   let pkg_root_dir = locate_pkg_root_dir(pname)
   log_debug "Walking ", pkg_root_dir
   #for fname in pkg_root_dir.walkDirRec(filter={pcFile}): # Bug in walkDirRec
-  var all_output = ""
+  var all_output: DocBuildOut = @[]
   var generated_doc_fnames: seq[string] = @[]
 
   var input_fnames: seq[string] = @[]
@@ -600,7 +604,6 @@ proc build_docs(pname: string) {.async.} =
 
   for fname in input_fnames:
     log_debug "running nim doc for $#" % fname
-    all_output.add "\n -- $# --\n" % fname
 
     let po = await run_process2(
       nim_bin_path,
@@ -610,8 +613,9 @@ proc build_docs(pname: string) {.async.} =
       true,
       @["doc", fname],
     )
-    all_output.add po.output
-    if po.exit_code == 0:
+    let success = (po.exit_code == 0)
+    all_output.add((success, fname, po.output))
+    if success:
       generated_doc_fnames.add fname[pkg_root_dir.len..^1][1..^4] & "html"
       log_debug "adding ", fname[pkg_root_dir.len..^1][1..^4] & "html"
 
@@ -654,8 +658,8 @@ proc fetch_and_build_pkg_if_needed(pname: string) {.async.} =
       expire_time: getTime() + build_expiry_time,
       fnames: @[],
       building: true,
-      build_status: BuildStatus.Failed,
-      doc_build_status: BuildStatus.Failed,
+      build_status: BuildStatus.Running,
+      doc_build_status: BuildStatus.Running,
     )
     pkgs_doc_files[pname] = pm
 
@@ -670,7 +674,6 @@ proc fetch_and_build_pkg_if_needed(pname: string) {.async.} =
   await fetch_and_build_pkg_using_nimble_old(pname)
   let elapsed = epochTime() - t0
   stats.gauge("build_time", elapsed)
-  pkgs_doc_files[pname].building = false # unlock
 
   if pkgs_doc_files[pname].build_status != BuildStatus.OK:
     log_debug "fetch_and_build_pkg_if_needed failed - skipping doc generation"
@@ -679,16 +682,11 @@ proc fetch_and_build_pkg_if_needed(pname: string) {.async.} =
 
   stats.incr("build_succeded")
 
-  await build_docs(pname)  # this can raise
-  #try:
-  #  let fnames = 
-  #  log_debug "Generated $# html files" % $fnames.len
-  #  pkgs_doc_files[pname].fnames = fnames
-  #except:
-  #  log_info "Doc build failed"
-  #  pkgs_doc_files[pname].fnames = @[]
+  try:
+    await build_docs(pname)  # this can raise
+  finally:
+    pkgs_doc_files[pname].building = false # unlock
 
-  #pkgs_doc_files[pname].last_commitish = commitish
   if pkgs[pname].hasKey("github_latest_version"):
     pkgs_doc_files[pname].version = pkgs[pname]["github_latest_version"].str
   else:
@@ -1053,6 +1051,8 @@ routes:
     # This might start a build here and populate pkgs_doc_files[pname]
     # or fail before setting pkgs_doc_files or not run at all
     await fetch_and_build_pkg_if_needed(pname)
+    # The Running badge should only appear if there are bugs
+    # in fetch_and_build_pkg_if_needed
 
     let md =
       try:
@@ -1070,6 +1070,8 @@ routes:
         build_fail_badge
       of BuildStatus.Timeout:
         build_fail_badge
+      of BuildStatus.Running:
+        build_running_badge
     resp(Http200, xml_no_cache_headers, badge)
 
   get "/ci/badges/@pkg_name/nimdevel/docstatus.svg":
@@ -1100,6 +1102,8 @@ routes:
         doc_fail_badge
       of BuildStatus.Timeout:
         doc_fail_badge
+      of BuildStatus.Running:
+        doc_running_badge
     resp(Http200, xml_no_cache_headers, badge)
 
   get "/ci/badges/@pkg_name/nimdevel/output.html":
@@ -1137,11 +1141,21 @@ routes:
     most_queried_packages.inc pname
     await fetch_and_build_pkg_if_needed(pname)
     try:
-      let outp = pkgs_doc_files[pname].doc_build_output
-      let doc_build_output = translate_term_colors(outp)
+      var doc_build_html = ""
+      for o in pkgs_doc_files[pname].doc_build_output:
+        let (success, fname, output) = o
+        if success:
+          doc_build_html.add """<div class="doc_build_success">"""
+        else:
+          doc_build_html.add """<div class="doc_build_fail">"""
+        doc_build_html.add "<p>$#</p>" % fname
+        let t = translate_term_colors(output)
+        doc_build_html.add "<p>$#</p>" % t
+        doc_build_html.add "</div>"
+
       resp base_page(request, generate_build_output_page(
         pname,
-        doc_build_output,
+        doc_build_html,
         pkgs_doc_files[pname].build_time,
         pkgs_doc_files[pname].expire_time,
       ))
