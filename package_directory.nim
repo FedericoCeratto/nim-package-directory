@@ -295,7 +295,7 @@ proc fetch_github_doc_pages(pkg: Pkg, owner, repo_name: string) =
 proc fetch_github_packages_json(): string =
   ## Fetch packages.json from GitHub
   log_debug "fetching ", github_packages_json_raw_url
-  return getContent(github_packages_json_raw_url)
+  getContent(github_packages_json_raw_url)
 
 proc `+`(t1, t2: Time): Time {.borrow.}
 
@@ -508,14 +508,14 @@ proc github_trending_packages(request: Request, pkgs: Pkgs): seq[JsonNode] =
 proc fetch_and_build_pkg_using_nimble_old(pname: string) {.async.} =
   ##
   let tmp_dir = tmp_nimble_root_dir / pname
-  log_debug "Starting nimble install $# --nimbleDir=$# -y" % [pname, tmp_dir]
+  log_debug "Starting nimble install $# --verbose --nimbleDir=$# -y" % [pname, tmp_dir]
   let po = await run_process2(
       nimble_bin_path,
       "nimble",
       ".",
       build_timeout_seconds,
       true,
-      @["install", $pname, "--nimbleDir=$#" % tmp_dir, "-y", "--debug"],
+      @["install", $pname, "--verbose", "--nimbleDir=$#" % tmp_dir, "-y", "--debug"],
     )
 
   let build_status: BuildStatus =
@@ -1298,8 +1298,12 @@ proc run_github_packages_json_polling(poll_time_s: int) {.async.} =
   ## Poll GH for packages.json
   ## Overwrite packages.json local file!
   log_debug "starting GH packages.json polling"
+  var first_run = true
   while true:
-    await sleepAsync poll_time_s * 1000
+    if first_run:
+      first_run = false
+    else:
+      await sleepAsync poll_time_s * 1000
     log_debug "Polling GitHub packages.json"
     try:
       let new_pkg_raw = fetch_github_packages_json()
