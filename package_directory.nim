@@ -38,7 +38,7 @@ import github,
 
 const
   template_path = "./templates"
-  build_timeout_seconds = 20
+  build_timeout_seconds = 40
   github_readme_tpl = "https://api.github.com/repos/$#/readme"
   github_tags_tpl = "https://api.github.com/repos/$#/tags"
   github_latest_version_tpl = "https://api.github.com/repos/$#/releases/latest"
@@ -640,7 +640,7 @@ proc fetch_and_build_pkg_if_needed(pname: string) {.async.} =
         break
       log_debug "waiting already running build for $# $#s..." % [pname, $int(elapsed)]
       await sleepAsync sleep_time_ms
-      if sleep_time_ms < 2000:
+      if sleep_time_ms < 1000:
         sleep_time_ms *= 2
 
     if pkgs_doc_files[pname].expire_time > getTime():
