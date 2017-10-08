@@ -32,10 +32,10 @@
       </div>
       <div class="tile-content">
         <div class="tile-title">
-          <tt>requires "${pkg["name"].str}"</tt>
+          <tt>$$ nimble install ${pkg["name"].str}</tt>
         </div>
         <div class="tile-subtitle">
-          Need help? Click <a href="#">here</a>.
+          Need help? Read <a href="https://github.com/nim-lang/nimble#creating-packageshttps://github.com/nim-lang/nimble">Nimble</a>
         </div>
       </div>
     </div>
@@ -56,8 +56,8 @@
     <div class="tile tile-centered divided">
       <div class="tile-content">
         #if pkg["github_versions"].getElems().len > 0:
+          Available versions:
           <b>${pkg["github_versions"].getElems().join(", ")}</b>
-          are the available versions
         #else:
           No tagged versions available
         #end
@@ -67,7 +67,7 @@
     <div class="tile tile-centered divided">
       <div class="tile-content">
         <div class="tile-title">
-          ${pkg["license"].str}
+          License: ${pkg["license"].str}
         </div>
       </div>
     </div>
