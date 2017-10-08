@@ -9,7 +9,6 @@ import asyncdispatch,
  httpclient,
  httpcore,
  json,
- logging,
  os,
  osproc,
  parseopt,
@@ -26,6 +25,7 @@ from times import epochTime
 
 #from nimblepkg import getTagsListRemote, getVersionList
 import jester,
+  morelogging,
   sdnotify,
   statsd_client
 
@@ -75,18 +75,15 @@ let stats = newStatdClient(prefix="nim_package_directory")
 #    of "p": conf.port = val.parseInt.Port
 #  else: discard
 
-let fl = newFileLogger(conf.log_fname, fmtStr = "$datetime $levelname ")
-fl.addHandler
+let log = newJournaldLogger()
 
 proc log_debug(args: varargs[string, `$`]) =
-  debug args
-  fl.file.flushFile()
+  log.debug(args.join(" "))
 
 proc log_info(args: varargs[string, `$`]) =
-  info args
-  fl.file.flushFile()
+  log.info(args.join(" "))
 
-proc log(request: Request) =
+proc log_req(request: Request) =
   ## Log request data
   #log_info "serving $# $# $#" % [request.ip, $request.reqMeth, request.path]
   discard
@@ -210,7 +207,7 @@ proc load_packages*() =
     # Normalize pkg name
     pdata["name"].str = pdata["name"].str.normalize()
     if pdata["name"].str in pkgs:
-      warn "Duplicate pkg name $#" % pdata["name"].str
+      log.warn "Duplicate pkg name $#" % pdata["name"].str
       continue
 
     pkgs.add (pdata["name"].str, pdata)
@@ -232,8 +229,8 @@ proc load_packages*() =
 
   log_info "Loaded ", $pkgs.len, " packages"
 
-  log_debug "writing $#" % conf.packages_list_fname
-  conf.packages_list_fname.writeFile(conf.packages_list_fname.readFile)
+  #log_debug "writing $#" % conf.packages_list_fname
+  #conf.packages_list_fname.writeFile(conf.packages_list_fname.readFile)
 
 
 proc cleanupWhitespace(s: string): string
@@ -324,7 +321,7 @@ proc run_process(bin_path, desc, work_dir: string,
   if exit_val == 0:
     log_debug "$# successful" % desc
   else:
-    error "run_process: $# failed, exit value: $#" % [desc, $exit_val]
+    log.error "run_process: $# failed, exit value: $#" % [desc, $exit_val]
   return ((exit_val == 0), stdout_str)
 
 proc run_process2(bin_path, desc, work_dir: string,
@@ -506,7 +503,7 @@ proc github_trending_packages(request: Request, pkgs: Pkgs): seq[JsonNode] =
 
 
 proc fetch_and_build_pkg_using_nimble_old(pname: string) {.async.} =
-  ##
+  ## Run nimble install for a package using a dedicated directory
   let tmp_dir = tmp_nimble_root_dir / pname
   log_debug "Starting nimble install $# --verbose --nimbleDir=$# -y" % [pname, tmp_dir]
   let po = await run_process2(
@@ -733,7 +730,7 @@ settings:
 routes:
 
   get "/":
-    log request
+    log_req request
     stats.incr("views")
     try:
       var top_pkgs: seq[Pkg] = @[]
@@ -757,11 +754,11 @@ routes:
                                     github_trending)
       resp base_page(request, home)
     except:
-      error getCurrentExceptionMsg()
+      log.error getCurrentExceptionMsg()
       halt Http400
 
   get "/search":
-    log request
+    log_req request
     stats.incr("views")
     let found_pkg_names = search_packages(@"query")
 
@@ -775,7 +772,7 @@ routes:
     resp base_page(request, body)
 
   get "/pkg/@pkg_name/?":
-    log request
+    log_req request
     stats.incr("views")
     let pname = normalize(@"pkg_name")
     if not pkgs.hasKey(pname):
@@ -805,7 +802,7 @@ routes:
 
   post "/update_package":
     ## Create or update a package description
-    log request
+    log_req request
     stats.incr("views")
     const required_fields = @["name", "url", "method", "tags", "description",
       "license", "web", "signatures", "authorized_keys"]
@@ -845,7 +842,7 @@ routes:
       let norm_name = name.normalize()
       for existing_pn in pkgs.keys():
         if norm_name == existing_pn.normalize():
-          info "Another package named $# already exists" % existing_pn
+          log.info "Another package named $# already exists" % existing_pn
           halt Http400, "Another package named $# already exists" % existing_pn
 
     if pkg_already_exists:
@@ -867,13 +864,13 @@ routes:
 
   get "/packages.json":
     ## Serve the packages list file
-    log request
+    log_req request
     stats.incr("views")
     resp conf.packages_list_fname.readFile
 
   get "/docs/@pkg_name/?":
     ## Serve hosted docs for a package: summary page
-    log request
+    log_req request
     stats.incr("views")
     let pname = normalize(@"pkg_name")
     if not pkgs.hasKey(pname):
@@ -893,7 +890,7 @@ routes:
   #get "/docs/@pkg_name_and_doc_path":
   get "/docs/@pkg_name/@a?/?@b?/?@c?/?@d?":
     ## Serve hosted docs for a package
-    log request
+    log_req request
     stats.incr("views")
     let pname = normalize(@"pkg_name")
     if not pkgs.hasKey(pname):
@@ -942,7 +939,7 @@ routes:
     resp base_page(request, page)
 
   get "/loader":
-    log request
+    log_req request
     stats.incr("views")
     resp base_page(request,
       generate_loader_page()
@@ -950,7 +947,7 @@ routes:
 
   get "/packages.xml":
     ## New and updated packages feed
-    log request
+    log_req request
     stats.incr("views_rss")
     let baseurl = conf.public_baseurl
     let url = baseurl / "packages.xml"
@@ -985,7 +982,7 @@ routes:
     resp(r, contentType="application/rss+xml")
 
   get "/stats":
-    log request
+    log_req request
     stats.incr("views")
     resp base_page(request, """
     <br/>
@@ -997,20 +994,20 @@ routes:
 
   get "/ci":
     ## CI summary
-    log request
+    log_req request
     stats.incr("views")
     #@bottle.view('index')
     #refresh_build_num()
     discard
 
   get "/ci/install_report":
-    log request
+    log_req request
     stats.incr("views")
     discard
 
   get "/ci/badges/@pkg_name/version.svg":
     ## Version badge
-    log request
+    log_req request
     stats.incr("views")
     let pname = normalize(@"pkg_name")
     if not pkgs.hasKey(pname):
@@ -1036,7 +1033,7 @@ routes:
 
   get "/ci/badges/@pkg_name/nimdevel/status.svg":
     ## Status badge
-    log request
+    log_req request
     stats.incr("views")
     let pname = normalize(@"pkg_name")
     if not pkgs.hasKey(pname):
@@ -1068,7 +1065,7 @@ routes:
 
   get "/ci/badges/@pkg_name/nimdevel/docstatus.svg":
     ## Doc build status badge
-    log request
+    log_req request
     stats.incr("views")
     let pname = normalize(@"pkg_name")
     if not pkgs.hasKey(pname):
@@ -1098,7 +1095,7 @@ routes:
 
   get "/ci/badges/@pkg_name/nimdevel/output.html":
     ## Build output
-    log request
+    log_req request
     stats.incr("views")
     log_info "$#" % $request.ip
     let pname = normalize(@"pkg_name")
@@ -1121,7 +1118,7 @@ routes:
 
   get "/ci/badges/@pkg_name/nimdevel/doc_build_output.html":
     ## Doc build output
-    log request
+    log_req request
     stats.incr("views")
     log_info "$#" % $request.ip
     let pname = normalize(@"pkg_name")
@@ -1334,7 +1331,7 @@ proc run_github_packages_json_polling(poll_time_s: int) {.async.} =
       stats.gauge("packages_history", cache.pkgs_history.len)
 
     except:
-      error getCurrentExceptionMsg()
+      log.error getCurrentExceptionMsg()
 
 
 
@@ -1342,7 +1339,7 @@ proc run_github_packages_json_polling(poll_time_s: int) {.async.} =
 
 onSignal(SIGINT, SIGTERM):
   ## Exit signal handler
-  info "Exiting"
+  log.info "Exiting"
   cache.save()
   #save_packages()
   quit()
