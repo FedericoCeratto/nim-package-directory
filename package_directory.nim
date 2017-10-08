@@ -60,6 +60,15 @@ const
   build_expiry_time = 300.Time # 5 mins
   cache_fn = ".cache.json"
 
+  xml_no_cache_headers = {
+    "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0, proxy-revalidate, no-transform",
+    "Expires": "0",
+    "Pragma": "no-cache",
+    "ContentType": "image/svg+xml"
+  }
+
+
+
 # init
 
 let conf = load_conf()
@@ -1025,11 +1034,11 @@ routes:
           version_badge_tpl % ["none", "none"]
         else:
           version_badge_tpl % [version, version]
-      resp(badge, contentType = "image/svg+xml")
+      resp(Http200, xml_no_cache_headers, badge)
     except:
       log_debug getCurrentExceptionMsg()
       let badge = version_badge_tpl % ["none", "none"]
-      resp(badge, contentType = "image/svg+xml")
+      resp(Http200, xml_no_cache_headers, badge)
 
   get "/ci/badges/@pkg_name/nimdevel/status.svg":
     ## Status badge
@@ -1061,7 +1070,7 @@ routes:
         build_fail_badge
       of BuildStatus.Timeout:
         build_fail_badge
-    resp(badge, contentType = "image/svg+xml")
+    resp(Http200, xml_no_cache_headers, badge)
 
   get "/ci/badges/@pkg_name/nimdevel/docstatus.svg":
     ## Doc build status badge
@@ -1091,7 +1100,7 @@ routes:
         doc_fail_badge
       of BuildStatus.Timeout:
         doc_fail_badge
-    resp(badge, contentType = "image/svg+xml")
+    resp(Http200, xml_no_cache_headers, badge)
 
   get "/ci/badges/@pkg_name/nimdevel/output.html":
     ## Build output
