@@ -666,16 +666,18 @@ proc fetch_and_build_pkg_if_needed(pname: string) {.async.} =
   # Fetch or update pkg
   let url = pkgs[pname]["url"].str
 
-  #if fetch_using_git(pname, url) == false:
-  #if fetch_pkg_using_nimble(pname) == false:
-
   pkgs_doc_files[pname].building = true # lock
-  let t0 = epochTime()
-  await fetch_and_build_pkg_using_nimble_old(pname)
-  let elapsed = epochTime() - t0
-  stats.gauge("build_time", elapsed)
+  try:
+    let t0 = epochTime()
+    await fetch_and_build_pkg_using_nimble_old(pname)
+    let elapsed = epochTime() - t0
+    stats.gauge("build_time", elapsed)
+  except:
+    pkgs_doc_files[pname].building = false # unlock
+    raise
 
   if pkgs_doc_files[pname].build_status != BuildStatus.OK:
+    pkgs_doc_files[pname].building = false # unlock
     log_debug "fetch_and_build_pkg_if_needed failed - skipping doc generation"
     stats.incr("build_failed")
     return
@@ -683,9 +685,13 @@ proc fetch_and_build_pkg_if_needed(pname: string) {.async.} =
   stats.incr("build_succeded")
 
   try:
+    let t1 = epochTime()
     await build_docs(pname)  # this can raise
+    let elapsed = epochTime() - t1
+    stats.gauge("doc_build_time", elapsed)
   finally:
     pkgs_doc_files[pname].building = false # unlock
+
 
   if pkgs[pname].hasKey("github_latest_version"):
     pkgs_doc_files[pname].version = pkgs[pname]["github_latest_version"].str
@@ -1094,6 +1100,8 @@ routes:
         halt Http400
         nil
 
+    # The Running badge should only appear if there the
+    # nimble install failed
     let badge =
       case md.doc_build_status
       of BuildStatus.OK:
