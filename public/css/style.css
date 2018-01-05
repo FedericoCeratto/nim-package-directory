@@ -103,3 +103,11 @@ div.doc_build_fail {
   border-left: 4px solid #ff9999;
   padding-left: .8em;
 }
+
+img#boxlogo {
+  height: 50px !important;
+}
+
+body {
+  background-color: #fff !important;
+}
