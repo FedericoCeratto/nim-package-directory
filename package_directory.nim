@@ -109,6 +109,7 @@ type
   DocBuildOut = seq[(bool, string, string)] # success_flag, filename, output
   PkgDocMetadata = ref object of RootObj
     fnames: strSeq
+    idx_fnames: strSeq
     building: bool
     build_time: Time
     expire_time: Time
@@ -222,7 +223,7 @@ proc load_packages*() =
       log.warn "Duplicate pkg name $#" % pdata["name"].str
       continue
 
-    pkgs.add (pdata["name"].str, pdata)
+    pkgs[pdata["name"].str] = pdata
 
     for tag in pdata["tags"]:
       if not packages_by_tag.hasKey(tag.str):
@@ -468,7 +469,7 @@ proc github_trending_packages(request: Request, pkgs: Pkgs): seq[JsonNode] =
   var website_to_name = initTable[string, string]()
   for it in pkgs.values:
     if it.hasKey("web"):
-      website_to_name.add (it["web"].str, it["name"].str)
+      website_to_name[it["web"].str] = it["name"].str
 
   for p in pkgs_list:
     try:
@@ -596,6 +597,7 @@ proc build_docs(pname: string) {.async.} =
   #for fname in pkg_root_dir.walkDirRec(filter={pcFile}): # Bug in walkDirRec
   var all_output: DocBuildOut = @[]
   var generated_doc_fnames: seq[string] = @[]
+  var generated_idx_fnames: seq[string] = @[]
 
   var input_fnames: seq[string] = @[]
   for fname in pkg_root_dir.walkDirRec():
@@ -607,20 +609,31 @@ proc build_docs(pname: string) {.async.} =
 
     let po = await run_process2(
       nim_bin_path,
-      "nim doc",
+      "nim doc --index:on",
       pkg_root_dir,
       2,
       true,
-      @["doc", fname],
+      @["doc", "--index:on", fname],
     )
     let success = (po.exit_code == 0)
     all_output.add((success, fname, po.output))
     if success:
-      generated_doc_fnames.add fname[pkg_root_dir.len..^1][1..^4] & "html"
-      log_debug "adding ", fname[pkg_root_dir.len..^1][1..^4] & "html"
+      let basename = fname[pkg_root_dir.len..^1][1..^5]
+      generated_doc_fnames.add basename & ".html"
+      log_debug "adding ", basename & ".html"
+
+      for kind, path in walkDir(pkg_root_dir, relative=true):
+        if path.endswith(".idx"):
+          #generated_idx_fnames.add basename & ".idx"
+          #idx_filenames.add path
+          log_debug "adding ", pkg_root_dir & " > " & path
+          #let chunks = path.split('-', maxsplit=1)
+          #if chunks[0].normalize() == pname:
+          #  result = pkgs_dir / path
 
   pkgs_doc_files[pname].doc_build_output = all_output
   pkgs_doc_files[pname].fnames = generated_doc_fnames
+  pkgs_doc_files[pname].idx_fnames = generated_idx_fnames
   pkgs_doc_files[pname].doc_build_status =
     if (input_fnames.len == generated_doc_fnames.len): BuildStatus.OK
     else: BuildStatus.Failed
@@ -657,6 +670,7 @@ proc fetch_and_build_pkg_if_needed(pname: string) {.async.} =
       build_time: getTime(),
       expire_time: getTime() + build_expiry_time,
       fnames: @[],
+      idx_fnames: @[],
       building: true,
       build_status: BuildStatus.Running,
       doc_build_status: BuildStatus.Running,
@@ -705,12 +719,16 @@ proc translate_term_colors*(outp: string): string =
     ("[36m[2m", "<span>"),
     ("[32m[1m", """<span class="success">"""),
     ("[33m[1m", """<span class="red">"""),
+    ("[31m[1m", """<span class="red">"""),
     ("[36m[1m", """<span class="blue">"""),
+    ("[0m[31m[0m", "</span>"),
     ("[0m[32m[0m", "</span>"),
     ("[0m[33m[0m", "</span>"),
     ("[0m[36m[0m", "</span>"),
+    ("[0m[0m", "</span>"),
     ("[2m", "<span>"),
     ("[36m", "<span>"),
+    ("[33m", """<span class="blue">"""),
   ]
   result = outp
   for s in sequences:
@@ -741,6 +759,10 @@ settings:
 # routes
 
 routes:
+
+  get "/about.html":
+    include "templates/about.tmpl"
+    resp base_page(request, generate_about_page())
 
   get "/":
     log_req request
@@ -900,9 +922,41 @@ routes:
       generate_doc_files_list_page(pname, pkgs_doc_files[pname])
     )
 
+  get "/docs/@pkg_name/idx_summary.json":
+    ## Serve hosted docs for a package: IDX summary
+    log_req request
+    stats.incr("views")
+    let pname = normalize(@"pkg_name")
+    if not pkgs.hasKey(pname):
+      resp base_page(request, "<p>Package not found</p>")
+
+    let pkg = pkgs[pname]
+
+    # Check out pkg and build docs. Modifies pkgs_doc_files
+    #await fetch_and_build_pkg_if_needed(pname)
+
+    let pkg_root_dir =
+      try:
+        locate_pkg_root_dir(pname)
+      except:
+        halt Http400
+        ""
+
+    var idx_filenames: strSeq = @[]
+    for kind, path in walkDir(pkg_root_dir, relative=true):
+      if path.endswith(".idx"):
+        idx_filenames.add path
+        #let chunks = path.split('-', maxsplit=1)
+        #if chunks[0].normalize() == pname:
+        #  result = pkgs_dir / path
+
+    # Show files summary
+    let s = %* {"version": 1, "idx_filenames": idx_filenames}
+    resp $s
+
   #get "/docs/@pkg_name_and_doc_path":
   get "/docs/@pkg_name/@a?/?@b?/?@c?/?@d?":
-    ## Serve hosted docs for a package
+    ## Serve hosted docs and idx files for a package
     log_req request
     stats.incr("views")
     let pname = normalize(@"pkg_name")
@@ -926,15 +980,14 @@ routes:
     let messy_path = @"a" / @"b" / @"c" / @"d"
     let doc_path = strip(messy_path, true, true, {'/'})
 
-    if not doc_path.endswith(".html"):
+    if not (doc_path.endswith(".html") or doc_path.endswith(".idx")):
       log_debug "Refusing to serve doc path $# $#" % [pname, doc_path]
       halt Http400
 
     log_debug "Attempting to serve doc path $# $#" % [pname, doc_path]
 
-    # Example:
-    # https://nimpkgdir.firelet.net/docs/nimgame2/nimgame2/audio.html
-    # From:
+    # Example: /docs/nimgame2/nimgame2/audio.html
+    # ..serves:
     # /dev/shm/nim_package_dir/nimgame2/pkgs/nimgame2-0.1.0/nimgame2/audio.html
 
     let fn = pkg_root_dir / doc_path
@@ -946,10 +999,13 @@ routes:
         </p>
         """ % [pname, pname])
 
-    # Serve doc file
-    let head = """<h4>Doc files for <a href="/pkg/$#">$#</a></h4>""" % [pname, pname]
-    let page = head & fn.readFile()
-    resp base_page(request, page)
+    # Serve doc or idx file
+    if doc_path.endswith(".idx"):
+      resp readFile(fn)
+    else:
+      let head = """<h4>Doc files for <a href="/pkg/$#">$#</a></h4>""" % [pname, pname]
+      let page = head & fn.readFile()
+      resp base_page(request, page)
 
   get "/loader":
     log_req request
@@ -1349,7 +1405,7 @@ proc run_github_packages_json_polling(poll_time_s: int) {.async.} =
             log_debug "New pkg added on GH: $#" % pname
 
       cache.save()
-      log_debug "writing $#" % conf.packages_list_fname
+      log_debug "writing $#" % (getCurrentDir() / conf.packages_list_fname)
       conf.packages_list_fname.writeFile(new_pkg_raw)
       load_packages()
 

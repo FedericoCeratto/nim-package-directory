@@ -1,0 +1,33 @@
+#? stdtmpl | standard
+#proc generate_about_page(): string =
+#  const build_success_badge = slurp "success.svg"
+#  const doc_success_badge = slurp "doc_success.svg"
+#  result = ""
+<div class="columns">
+  <div class="column col-12">
+    <h5>Welcome to the Nim Package Directory</h5>
+    <p>This service allows you to explore Nim packages known to Nimble.
+    <br/>
+    It tests package installation and generates documentation using "nim doc".
+    <br/>
+    It also generates badges with the output of install test and documentation
+    generation that you can link to.
+    <br />
+    <br />
+    Successful runs look like: ${build_success_badge} and ${doc_success_badge}
+    <br />
+    <br />
+    Markdown links to install test and documentation:
+    <pre class="code" data-lang="HTML">
+      <code>
+[![Build Status](https://nimble.directory/ci/badges/jester/nimdevel/status.svg)](https://nimble.directory/ci/badges/jester/nimdevel/output.html)
+
+[![Build Status](https://nimble.directory/ci/badges/jester/nimdevel/docstatus.svg)](https://nimble.directory/ci/badges/jester/nimdevel/doc_build_output.html)
+      </code>
+    </pre>
+    Add your own packages <a href="https://github.com/nim-lang/packages/">here</a>
+
+    Contribute to the service <a href="https://github.com/FedericoCeratto/nim-package-directory" class="btn btn-link">here</a>
+    </p>
+  </div>
+</div>
