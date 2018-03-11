@@ -1,0 +1,58 @@
+#? stdtmpl | standard
+#proc generate_build_history_page(build_history: Deque[BuildHistoryItem]): string =
+#  const build_success_badge = slurp "success.svg"
+#  const build_fail_badge = slurp "fail.svg"
+#  const doc_success_badge = slurp "doc_success.svg"
+#  const doc_fail_badge = slurp "doc_fail.svg"
+#  result = ""
+<div class="columns">
+  <div class="column col-12">
+    <table class="table table-striped table-hover">
+      <thead>
+        <tr>
+          <th>name</th>
+          <th>build date</th>
+          <th>build output</th>
+          <th>doc gen output</th>
+        </tr>
+      </thead>
+      <tbody>
+        # for i in build_history:
+        <tr>
+          <td>
+            <a href="/pkg/${i.name}">${i.name}</a>
+          </td>
+          <td>${i.build_time}</td>
+          <td>
+            # if i.build_status == BuildStatus.OK:
+              <a href="/ci/badges/${i.name}/nimdevel/output.html">
+                ${build_success_badge}</a>
+            # else:
+              <a href="/ci/badges/${i.name}/nimdevel/output.html">
+                ${build_fail_badge}
+              </a>
+            # end
+          </td>
+          <td>
+          # if i.doc_build_status == BuildStatus.OK:
+              <a href="/ci/badges/${i.name}/nimdevel/output.html">
+                ${doc_success_badge}
+              </a>
+          # else:
+            # if i.build_status == BuildStatus.OK:
+              <a href="/ci/badges/${i.name}/nimdevel/doc_build_output.html">
+                ${doc_fail_badge}
+              </a>
+            # else:
+              <a href="/ci/badges/${i.name}/nimdevel/output.html">
+                ${doc_fail_badge}
+              </a>
+            # end
+          # end
+          </td>
+        </tr>
+        # end
+      </tbody>
+    </table>
+  </div>
+</div>

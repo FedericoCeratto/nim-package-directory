@@ -6,6 +6,7 @@
 #
 
 import asyncdispatch,
+ deques,
  httpclient,
  httpcore,
  json,
@@ -122,6 +123,11 @@ type
 
   RssItem = object
     title, desc, url, guid, pubDate: string
+  BuildHistoryItem = tuple
+    name: string
+    build_time: Time
+    build_status: BuildStatus
+    doc_build_status: BuildStatus
 
 # the pkg name is normalized
 var pkgs: Pkgs = newTable[string, Pkg]()
@@ -136,6 +142,9 @@ var packages_by_description_word = newTable[string, seq[string]]()
 # package access statistics
 var most_queried_packages = initCountTable[string]()
 
+# build history
+const build_history_size = 100
+var build_history = initDeque[BuildHistoryItem]()
 
 # disk-persisted cache
 
@@ -306,6 +315,14 @@ proc fetch_github_packages_json(): string =
   ## Fetch packages.json from GitHub
   log_debug "fetching ", github_packages_json_raw_url
   getContent(github_packages_json_raw_url)
+
+proc append(build_history: var Deque[BuildHistoryItem], name: string,
+    build_time: Time, build_status, doc_build_status: BuildStatus) =
+  ## Add BuildHistoryItem to build history
+  if build_history.len == build_history_size:
+    discard build_history.popLast
+  let i: BuildHistoryItem = (name, build_time, build_status, doc_build_status)
+  build_history.addFirst(i)
 
 proc `+`(t1, t2: Time): Time {.borrow.}
 
@@ -694,6 +711,12 @@ proc fetch_and_build_pkg_if_needed(pname: string) {.async.} =
     pkgs_doc_files[pname].building = false # unlock
     log_debug "fetch_and_build_pkg_if_needed failed - skipping doc generation"
     stats.incr("build_failed")
+    build_history.append(
+      pname,
+      pkgs_doc_files[pname].build_time,
+      pkgs_doc_files[pname].build_status,
+      pkgs_doc_files[pname].doc_build_status
+    )
     return
 
   stats.incr("build_succeded")
@@ -706,6 +729,12 @@ proc fetch_and_build_pkg_if_needed(pname: string) {.async.} =
   finally:
     pkgs_doc_files[pname].building = false # unlock
 
+  build_history.append(
+    pname,
+    pkgs_doc_files[pname].build_time,
+    pkgs_doc_files[pname].build_status,
+    pkgs_doc_files[pname].doc_build_status
+  )
 
   if pkgs[pname].hasKey("github_latest_version"):
     pkgs_doc_files[pname].version = pkgs[pname]["github_latest_version"].str
@@ -805,6 +834,11 @@ routes:
     let body = generate_search_box(@"query") &
                generate_pkg_list_page(pkgs_list)
     resp base_page(request, body)
+
+  get "/build_history.html":
+    include "templates/build_history.tmpl"
+    log_req request
+    resp base_page(request, generate_build_history_page(build_history))
 
   get "/pkg/@pkg_name/?":
     log_req request
