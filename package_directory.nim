@@ -39,7 +39,7 @@ import github,
 
 const
   template_path = "./templates"
-  build_timeout_seconds = 40
+  build_timeout_seconds = 120
   github_readme_tpl = "https://api.github.com/repos/$#/readme"
   github_tags_tpl = "https://api.github.com/repos/$#/tags"
   github_latest_version_tpl = "https://api.github.com/repos/$#/releases/latest"
@@ -107,7 +107,10 @@ type
   strSeq = seq[string]
   PkgName = distinct string
   BuildStatus {.pure.} = enum OK, Failed, Timeout, Running
-  DocBuildOut = seq[(bool, string, string)] # success_flag, filename, output
+  DocBuildOutItem = tuple
+    success_flag: bool
+    filename, desc, output: string
+  DocBuildOut = seq[DocBuildOutItem]
   PkgDocMetadata = ref object of RootObj
     fnames: strSeq
     idx_fnames: strSeq
@@ -162,7 +165,8 @@ type
 var cache: Cache
 
 proc save(cache: Cache) =
-  store(newFileStream(cache_fn, fmWrite), cache)
+  let f = newFileStream(cache_fn, fmWrite)
+  f.store(cache)
 
 proc load_cache(): Cache =
   ## Load cache from disk or create empty cache
@@ -174,7 +178,7 @@ proc load_cache(): Cache =
     load(newFileStream(cache_fn, fmRead), result)
     log_debug "cache loaded"
   except:
-    # init cache
+    log_info "initializing new cache"
     #result.pkgs = newTable[string, Pkg]()
     result.pkgs_history = @[]
     result.save()
@@ -556,8 +560,12 @@ proc fetch_and_build_pkg_using_nimble_old(pname: string) {.async.} =
 
   log_debug "Setting status ", build_status
 
-  pkgs_doc_files[pname].build_output = po.output
   pkgs_doc_files[pname].build_status = build_status
+  if build_status == BuildStatus.Timeout:
+    pkgs_doc_files[pname].build_output = "** Install test timed out after " & $build_timeout_seconds & " seconds **\n\n" & po.output
+  else:
+    pkgs_doc_files[pname].build_output = po.output
+
   pkgs_doc_files[pname].build_time = getTime()
   pkgs_doc_files[pname].expire_time = getTime() + build_expiry_time
 
@@ -624,18 +632,23 @@ proc build_docs(pname: string) {.async.} =
   for fname in input_fnames:
     log_debug "running nim doc for $#" % fname
 
+    # TODO: enable --docSeeSrcUrl:<url>
+
+    let desc = "nim doc --index:on $#" % fname
+    let run_dir = fname.splitPath.head
     let po = await run_process2(
       nim_bin_path,
-      "nim doc --index:on",
-      pkg_root_dir,
-      2,
+      desc,
+      run_dir,
+      10,
       true,
       @["doc", "--index:on", fname],
     )
     let success = (po.exit_code == 0)
-    all_output.add((success, fname, po.output))
+    all_output.add((success, fname, desc, po.output))
     if success:
-      let basename = fname[pkg_root_dir.len..^1][1..^5]
+      # trim away <pkg_root_dir> and ".nim"
+      let basename = fname[pkg_root_dir.len..^5]
       generated_doc_fnames.add basename & ".html"
       log_debug "adding ", basename & ".html"
 
@@ -1241,13 +1254,13 @@ routes:
     try:
       var doc_build_html = ""
       for o in pkgs_doc_files[pname].doc_build_output:
-        let (success, fname, output) = o
-        if success:
+        if o.success_flag:
           doc_build_html.add """<div class="doc_build_success">"""
         else:
           doc_build_html.add """<div class="doc_build_fail">"""
-        doc_build_html.add "<p>$#</p>" % fname
-        let t = translate_term_colors(output)
+        doc_build_html.add "<p>$#</p>" % o.filename
+        doc_build_html.add "<p>$#</p>" % o.desc
+        let t = translate_term_colors(o.output)
         doc_build_html.add "<p>$#</p>" % t
         doc_build_html.add "</div>"
 
