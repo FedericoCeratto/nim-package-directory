@@ -28,7 +28,8 @@ from times import epochTime
 import jester,
   morelogging,
   sdnotify,
-  statsd_client
+  statsd_client,
+  zmq
 
 import github,
   signatures,
@@ -53,6 +54,7 @@ const
   sdnotify_ping_time_s = 1
   nim_bin_path = "/usr/bin/nim"
   nimble_bin_path = "/usr/bin/nimble"
+  task_pubsub_port = 5583
   tmp_nimble_root_dir =
     when defined(macosx):
       "/tmp/nim_package_dir"
@@ -75,6 +77,7 @@ const
 let conf = load_conf()
 let github_token = "Authorization: token $#\c\L" % conf.github_token
 let stats = newStatdClient(prefix="nim_package_directory")
+let zmqsock = listen("tcp://*:" & $task_pubsub_port, mode=PUB)
 
 # parse CLI opts
 
@@ -711,6 +714,7 @@ proc fetch_and_build_pkg_if_needed(pname: string) {.async.} =
   let url = pkgs[pname]["url"].str
 
   pkgs_doc_files[pname].building = true # lock
+  zmqsock.send("build:start " & pname)
   try:
     let t0 = epochTime()
     await fetch_and_build_pkg_using_nimble_old(pname)
@@ -1476,6 +1480,7 @@ onSignal(SIGINT, SIGTERM):
   log.info "Exiting"
   cache.save()
   #save_packages()
+  zmqsock.close()
   quit()
 
 proc main() =

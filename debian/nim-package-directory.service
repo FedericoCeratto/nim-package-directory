@@ -25,9 +25,10 @@ WatchdogSec=30s
 # Hardening
 NoNewPrivileges=yes
 CapabilityBoundingSet=
-SystemCallFilter=~@cpu-emulation @debug @keyring @module @mount @obsolete @raw-io @resources @clock @debug @keyring @mount @privileged @reboot @setuid @swap @memlock
+SystemCallFilter=~@cpu-emulation @debug @keyring @module @mount @obsolete @raw-io @clock @debug @keyring @mount @privileged @reboot @setuid @swap @memlock
 SystemCallErrorNumber=EPERM
 # ipc, signal  are needed
+# @resources: needed by zmq to run listen()
 
 ProtectSystem=strict
 PrivateDevices=yes
