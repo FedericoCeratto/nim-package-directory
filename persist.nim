@@ -27,7 +27,7 @@ proc load_pkgs_history*(): seq[string] =
 
 type
   Conf* = object of RootObj
-    github_token*, log_fname*, packages_list_fname*, public_baseurl*: string
+    github_token*, log_fname*, packages_list_fname*, public_baseurl*, tmp_nimble_root_dir*: string
     port*: Port
 
 proc load_conf*(): Conf =

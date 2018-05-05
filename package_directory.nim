@@ -55,11 +55,6 @@ const
   nim_bin_path = "/usr/bin/nim"
   nimble_bin_path = "/usr/bin/nimble"
   task_pubsub_port = 5583
-  tmp_nimble_root_dir =
-    when defined(macosx):
-      "/tmp/nim_package_dir"
-    else:
-      "/dev/shm/nim_package_dir"
   build_expiry_time = 300.Time # 5 mins
   cache_fn = ".cache.json"
 
@@ -517,10 +512,10 @@ proc github_trending_packages(request: Request, pkgs: Pkgs): seq[JsonNode] =
 
 
 # proc fetch_using_git(pname, url: string): bool =
-#   let repo_dir =  tmp_nimble_root_dir / pname
+#   let repo_dir =  conf.tmp_nimble_root_dir / pname
 #   if not repo_dir.existsDir():
 #     log_debug "checking out $#" % url
-#     run_process_old(git_bin_path, "git clone", tmp_nimble_root_dir, 60, false,
+#     run_process_old(git_bin_path, "git clone", conf.tmp_nimble_root_dir, 60, false,
 #     "clone", url, pname)
 #   else:
 #     log_debug "git pull-ing $#" % url
@@ -542,7 +537,7 @@ proc github_trending_packages(request: Request, pkgs: Pkgs): seq[JsonNode] =
 
 proc fetch_and_build_pkg_using_nimble_old(pname: string) {.async.} =
   ## Run nimble install for a package using a dedicated directory
-  let tmp_dir = tmp_nimble_root_dir / pname
+  let tmp_dir = conf.tmp_nimble_root_dir / pname
   log_debug "Starting nimble install $# --verbose --nimbleDir=$# -y" % [pname, tmp_dir]
   let po = await run_process2(
       nimble_bin_path,
@@ -573,19 +568,19 @@ proc fetch_and_build_pkg_using_nimble_old(pname: string) {.async.} =
   pkgs_doc_files[pname].expire_time = getTime() + build_expiry_time
 
 # proc fetch_pkg_using_nimble(pname: string): bool =
-#   let pkg_install_dir = tmp_nimble_root_dir / pname
+#   let pkg_install_dir = conf.tmp_nimble_root_dir / pname
 # 
 #   var outp = run_process_old(nimble_bin_path, "nimble update",
-#     tmp_nimble_root_dir, 10, true,
-#     "update", " --nimbleDir=" & tmp_nimble_root_dir)
+#     conf.tmp_nimble_root_dir, 10, true,
+#     "update", " --nimbleDir=" & conf.tmp_nimble_root_dir)
 #   assert outp.contains("Done")
 # 
-#   #if not tmp_nimble_root_dir.existsDir():
+#   #if not conf.tmp_nimble_root_dir.existsDir():
 #   outp = ""
 #   if true:
 #     # First install
-#     log_debug tmp_nimble_root_dir, " is not existing"
-#     outp = run_process_old(nimble_bin_path, "nimble install", tmp_nimble_root_dir,
+#     log_debug conf.tmp_nimble_root_dir, " is not existing"
+#     outp = run_process_old(nimble_bin_path, "nimble install", conf.tmp_nimble_root_dir,
 #       60, true,
 #       "install", pname, " --nimbleDir=./nyan", "-y")
 #     log_debug "Install successful"
@@ -593,7 +588,7 @@ proc fetch_and_build_pkg_using_nimble_old(pname: string) {.async.} =
 #   else:
 #     # Update pkg
 #     #outp = run_process_old(nimble_bin_path, "nimble install", "/", 60, true,
-#     #  "install", pname, " --nimbleDir=" & tmp_nimble_root_dir, "-y")
+#     #  "install", pname, " --nimbleDir=" & conf.tmp_nimble_root_dir, "-y")
 #     #  FIXME
 #     log_debug "Update successful"
 # 
@@ -604,7 +599,7 @@ proc locate_pkg_root_dir(pname: string): string =
   ## Locate installed pkg root dir
   # Full path example:
   # /dev/shm/nim_package_dir/nimgame2/pkgs/nimgame2-0.1.0
-  let pkgs_dir = tmp_nimble_root_dir / pname / "pkgs"
+  let pkgs_dir = conf.tmp_nimble_root_dir / pname / "pkgs"
   log_debug "scanning dir $#" % pkgs_dir
   for kind, path in walkDir(pkgs_dir, relative=true):
     log_debug "scanning $#" % path
@@ -1486,7 +1481,7 @@ onSignal(SIGINT, SIGTERM):
 proc main() =
   #setup_seccomp()
   log_info "starting"
-  tmp_nimble_root_dir.createDir()
+  conf.tmp_nimble_root_dir.createDir()
   load_packages()
   cache = load_cache()
   #asyncCheck start_nim_commit_polling(github_nim_commit_polling_time)
