@@ -246,7 +246,7 @@ proc load_packages*() =
     for orig_word in orig_words:
       if orig_word.len < 3:
         continue  # ignore short words
-      let word = orig_word.toLower
+      let word = orig_word.toLowerAscii
       if not packages_by_description_word.hasKey(word):
         packages_by_description_word[word] = @[]
       packages_by_description_word[word].add pdata["name"].str
@@ -269,7 +269,7 @@ proc save_packages() =
 
 proc search_packages*(query: string): CountTable[string] =
   ## Search packages by name, tag and keyword
-  let query = query.split({' ', ','})
+  let query = query.strip.toLowerAscii.split({' ', ','})
   var found_pkg_names = initCountTable[string]()
   for item in query:
 
@@ -286,8 +286,8 @@ proc search_packages*(query: string): CountTable[string] =
         found_pkg_names.inc(pn, val=3)
 
     # matching by description, weighted 1
-    if packages_by_description_word.has_key(item.toLower):
-      for pn in packages_by_description_word[item.toLower]:
+    if packages_by_description_word.has_key(item.toLowerAscii):
+      for pn in packages_by_description_word[item.toLowerAscii]:
         found_pkg_names.inc(pn, val=1)
 
   # sort packages by best match
@@ -308,7 +308,7 @@ proc fetch_github_readme*(pkg: Pkg, owner_repo_name: string) =
 
 proc fetch_github_doc_pages(pkg: Pkg, owner, repo_name: string) =
   ## Fetch documentation pages from GitHub
-  let url = github_doc_index_tpl % [owner.toLower, repo_name]
+  let url = github_doc_index_tpl % [owner.toLowerAscii, repo_name]
   log_debug "Checking ", url
   if get(url).status.startsWith("200"):
     pkg["doc"] = newJString url
@@ -521,17 +521,17 @@ proc github_trending_packages(request: Request, pkgs: Pkgs): seq[JsonNode] =
 #     log_debug "git pull-ing $#" % url
 #     run_process_old(git_bin_path, "git pull", repo_dir, 60, false,
 #     "pull")
-# 
+#
 #   let commitish = run_process_old(git_bin_path, "git rev-parse", repo_dir,
 #   1, false,
 #   "rev-parse", "--verify", "HEAD")
-# 
+#
 #   if commitish == pkgs_doc_files[pname].last_commitish:
 #     pkgs_doc_files[pname].expire_time = getTime() + build_expiry_time
 #     #pkgs_doc_files[pname].building = false # unlock
 #     log_debug "no changes to repo"
 #     return false
-# 
+#
 #   return true
 
 
@@ -569,12 +569,12 @@ proc fetch_and_build_pkg_using_nimble_old(pname: string) {.async.} =
 
 # proc fetch_pkg_using_nimble(pname: string): bool =
 #   let pkg_install_dir = conf.tmp_nimble_root_dir / pname
-# 
+#
 #   var outp = run_process_old(nimble_bin_path, "nimble update",
 #     conf.tmp_nimble_root_dir, 10, true,
 #     "update", " --nimbleDir=" & conf.tmp_nimble_root_dir)
 #   assert outp.contains("Done")
-# 
+#
 #   #if not conf.tmp_nimble_root_dir.existsDir():
 #   outp = ""
 #   if true:
@@ -584,14 +584,14 @@ proc fetch_and_build_pkg_using_nimble_old(pname: string) {.async.} =
 #       60, true,
 #       "install", pname, " --nimbleDir=./nyan", "-y")
 #     log_debug "Install successful"
-# 
+#
 #   else:
 #     # Update pkg
 #     #outp = run_process_old(nimble_bin_path, "nimble install", "/", 60, true,
 #     #  "install", pname, " --nimbleDir=" & conf.tmp_nimble_root_dir, "-y")
 #     #  FIXME
 #     log_debug "Update successful"
-# 
+#
 #   pkgs_doc_files[pname].build_output = outp
 #   return true
 
