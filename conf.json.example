@@ -2,4 +2,7 @@
   "github_token": "",
   "log_fname": "pkgs.log",
   "packages_list_fname": "packages.json"
+  "public_baseurl": "https://nimble.directory",
+  "port": 5000,
+  "tmp_nimble_root_dir": "/var/lib/nim_package_directory/cache"
 }
