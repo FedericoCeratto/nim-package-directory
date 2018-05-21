@@ -483,7 +483,7 @@ proc github_trending_packages(request: Request, pkgs: Pkgs): seq[JsonNode] =
   result = @[]
   let pkgs_list = fetch_github_repository_stats(
     sorting="updated", pagenum=1, limit=20,
-    initial_date=getGmTime(getTime() - 14.days)
+    initial_date=utc(getTime() - 14.days)
   )
   var website_to_name = initTable[string, string]()
   for it in pkgs.values:
