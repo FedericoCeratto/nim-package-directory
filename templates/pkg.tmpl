@@ -32,7 +32,9 @@
       </div>
       <div class="tile-content">
         <div class="tile-title">
-          <tt>$$ nimble install ${pkg["name"].str}</tt>
+          <tt>
+            <input onClick="this.select();" value="nimble install ${pkg["name"].str}" readonly />
+          </tt>
         </div>
         <div class="tile-subtitle">
           Need help? Read <a href="https://github.com/nim-lang/nimble#creating-packages">Nimble</a>

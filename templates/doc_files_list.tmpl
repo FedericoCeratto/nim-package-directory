@@ -1,7 +1,7 @@
 #? stdtmpl | standard
 #proc generate_doc_files_list_page(pkg_name: string, m: PkgDocMetadata): string =
 #  result = ""
-    <h3>Doc files for <a href="/pkg/${pkg_name}">${pkg_name}</a></h3>
+    <h4>Hosted Documentation for <a href="/pkg/${pkg_name}">${pkg_name}</a></h4>
     <ul>
 #    for fn in m.fnames:
     <li><a href="/docs/${pkg_name}/${fn}">${fn}</a></li>
