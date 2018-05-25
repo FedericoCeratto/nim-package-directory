@@ -70,7 +70,26 @@
     <div class="tile tile-centered divided">
       <div class="tile-content">
         <div class="tile-title">
-          License: ${pkg["license"].str}
+          License:
+    #     let licns = pkg["license"].str.toLowerAscii.strip
+    #     if licns == "mit":
+            <a href="https://opensource.org/licenses/MIT">MIT</a>
+    #     elif licns == "apache2":
+            <a href="https://opensource.org/licenses/Apache-2.0">Apache 2</a>
+    #     elif licns == "bsd2":
+            <a href="https://opensource.org/licenses/BSD-2-Clause">BSD 2-Clause</a>
+    #     elif licns == "bsd3":
+            <a href="https://opensource.org/licenses/BSD-3-Clause">BSD 3-Clause</a>
+    #     elif licns == "gplv3":
+            <a href="https://opensource.org/licenses/GPL-3.0">GPL 3</a>
+    #     elif licns == "gpl":
+            <a href="https://opensource.org/licenses/GPL-3.0">GPL</a>
+    #     elif licns == "lgplv3":
+            <a href="https://opensource.org/licenses/LGPL-3.0">LGPL 3</a>
+    #     elif licns == "lgpl":
+            <a href="https://opensource.org/licenses/LGPL-3.0">LGPL</a>
+    #     else:
+            ${pkg["license"].str}
         </div>
       </div>
     </div>
