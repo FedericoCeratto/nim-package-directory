@@ -33,7 +33,8 @@
       <div class="tile-content">
         <div class="tile-title">
           <tt>
-            <input onClick="this.select();" value="nimble install ${pkg["name"].str}" readonly />
+            <input id="cmd" onClick="this.select();" value="nimble install ${pkg["name"].str}" readonly />
+            <a title="Copy" onClick="document.querySelector('#cmd').select();document.execCommand('copy');"><i class="fa fa-copy"></i></a>
           </tt>
         </div>
         <div class="tile-subtitle">
