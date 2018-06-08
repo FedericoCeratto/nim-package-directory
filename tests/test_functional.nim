@@ -22,84 +22,71 @@ if not existsEnv("NIMPKGDIR_ENABLE_FUNCTEST"):
 const url="http://localhost:5000"
 
 proc get(url: string): string =
-  echo "Fetching $#" % url
-  return getContent(url)
-
-
-#var node = %* {
-#  "authorized_keys": @["0x6F31BC44F5177DAA"],
-#  "description": "blah",
-#  "license": "GPLv3",
-#  "method": "git",
-#  "name": "testfoo",
-#  "tags": @["foo", "bar"],
-#  "url": "https://uu",
-#  "web": "https://abc"
-#}
-#let sig = generate_gpg_signature(node, "")
-#node["signature"] = newJString sig
-#
-#let body = node.pretty()
+  echo "          Fetching $#" % url
+  return httpclient.getContent(url)
 
 
 suite "functional tests":
 
   test "index":
     var page = get url
-    assert page.contains "Recently"
-    assert page.contains "A sinatra-like web"
+    check page.contains "Recently"
 
   test "search / show pkg list":
     # users search pkg
     var page = get(url & "/search?query=framework")
-    assert page.contains "Chromium Embedded Framework"
+    check page.contains "Chromium Embedded Framework"
     page = get(url & "/search?query=framework")
-    assert page.contains "Chromium Embedded Framework"
+    check page.contains "Chromium Embedded Framework"
 
   test "show jester pkg":
     # users look at pkg metadata
     #   look at pkg github readme
     var page = get(url & "/pkg/jester")
-    assert page.contains "Jester provides a DSL"
+    check page.contains "Jester provides a DSL"
     page = get(url & "/pkg/jester")
-    assert page.contains "Jester provides a DSL"
+    check page.contains "Jester provides a DSL"
     # Check string from the GH readme
-    assert page.contains "Routes will be executed in the order"
+    check page.contains "Routes will be executed in the order"
 
   test "fetch packages.json":
     var page = get url & "/packages.json"
     let pkgs_1 = page.parseJson()
-    assert pkgs_1.len > 100
+    check pkgs_1.len > 100
 
   test "show hosted doc file list":
     var page = get url & "/docs/jester"
-    assert page.contains "jester.html"
+    check page.contains "jester.html"
     page = get url & "/docs/jester"
-    assert page.contains "jester.html"
+    check page.contains "jester.html"
 
   test "show hosted doc file":
     var page = get url & "/docs/jester/jester.html"
     # From jester's docgen
-    assert page.contains "IP address of the requesting client"
+    check page.contains "IP address of the requesting client"
     page = get url & "/docs/jester/jester.html"
-    assert page.contains "IP address of the requesting client"
+    check page.contains "IP address of the requesting client"
 
   test "new packages RSS":
     var page = get url & "/packages.xml"
-    assert page.contains """<?xml version="1.0" encoding="UTF-8" ?>"""
-    assert page.contains """<rss version="2.0">"""
+    check page.contains """<?xml version="1.0" encoding="UTF-8" ?>"""
+    check page.contains """<rss version="2.0">"""
 
+  # test "jsondoc":
+  #   var page = get url & "/searchitem?query=newSettings"
+  #   check page.contains "324"
+  #   check page.contains "getCurrentDir"
 
-  get "/ci/install_report":
-    discard
+  # test "/ci/install_report":
+  #   discard
 
-  get "/ci/badges/@pkg_name/version.svg":
-    ## Version badge
-    discard
+  # test "/ci/badges/@pkg_name/version.svg":
+  #   ## Version badge
+  #   discard
 
-  get "/ci/badges/@pkg_name/nim_version/status.svg":
-    ## Status badge
-    discard
+  # test "/ci/badges/@pkg_name/nim_version/status.svg":
+  #   ## Status badge
+  #   discard
 
 
 
