@@ -18,5 +18,5 @@ Currently running at https://nimble.directory
 .Use:
 - For Development, Copy and edit `conf.json.example` to `conf.json`.
 - Download the Nims packages.json to projects root folder: https://raw.githubusercontent.com/nim-lang/packages/master/packages.json
-- Execute `nim c -r -d:systemd package_directory.nim`.
+- Execute `nim c -r package_directory.nim`.
 - Open on the web browser http://localhost:5000/search
