@@ -74,15 +74,6 @@ let github_token = "Authorization: token $#\c\L" % conf.github_token
 let stats = newStatdClient(prefix="nim_package_directory")
 let zmqsock = listen("tcp://*:" & $task_pubsub_port, mode=PUB)
 
-# parse CLI opts
-
-#for kind, key, val in getopt():
-#  case kind
-#  of cmdShortOption:
-#    case key
-#    of "p": conf.port = val.parseInt.Port
-#  else: discard
-
 when defined(systemd):
   let log = newJournaldLogger()
 else:
@@ -109,11 +100,11 @@ type
   strSeq = seq[string]
   PkgName = distinct string
   BuildStatus {.pure.} = enum OK, Failed, Timeout, Running
-  DocBuildOutItem = tuple
+  DocBuildOutItem = object
     success_flag: bool
     filename, desc, output: string
   DocBuildOut = seq[DocBuildOutItem]
-  PkgDocMetadata = ref object of RootObj
+  PkgDocMetadata = object of RootObj
     fnames: strSeq
     idx_fnames: strSeq
     building: bool
@@ -133,21 +124,36 @@ type
     build_time: Time
     build_status: BuildStatus
     doc_build_status: BuildStatus
+  JsonDocPkgItem = object
+    code, desc, itype, filepath: string
+    line, col: int
+  JsonDocPkgItems = seq[JsonDocPkgItem]
 
 # the pkg name is normalized
 var pkgs: Pkgs = newTable[string, Pkg]()
 type PkgsDocFilesTable = Table[string, PkgDocMetadata]
+# package name -> PkgDocMetadata
+# initialized by scan_pkgs_dir
 var pkgs_doc_files = newTable[string, PkgDocMetadata]()
 
 # tag -> package name
+# initialized/updated by load_packages
 var packages_by_tag = newTable[string, seq[string]]()
 # word -> package name
+# word -> package name
+# initialized/updated by load_packages
 var packages_by_description_word = newTable[string, seq[string]]()
 
 # package access statistics
+# initialized by scan_pkgs_dir
+var jsondoc_items = newTable[string, JsonDocPkgItems]()
+
+# package access statistics
+# volatile
 var most_queried_packages = initCountTable[string]()
 
 # build history
+# volatile
 const build_history_size = 100
 var build_history = initDeque[BuildHistoryItem]()
 
@@ -169,6 +175,7 @@ var cache: Cache
 proc save(cache: Cache) =
   let f = newFileStream(cache_fn, fmWrite)
   f.store(cache)
+  f.close()
 
 proc load_cache(): Cache =
   ## Load cache from disk or create empty cache
@@ -185,6 +192,47 @@ proc load_cache(): Cache =
     result.pkgs_history = @[]
     result.save()
     log_debug "new cache created"
+
+proc uniescape(inp: string): string =
+  result = ""
+  for c in inp:
+    let o = c.ord
+    if o < 32 or o > 126:
+      let q = "\\u00" & o.toHex()[^2..^1]
+      result.add q
+    else:
+      result.add c
+
+proc save_pkg_metadata(j: PkgDocMetadata, fn: string) =
+  ## Save package metadata
+  log_debug "Saving to $#" % fn
+  var k = PkgDocMetadata()
+  deepCopy[PkgDocMetadata](k, j)
+  let f = newFileStream(fn, fmWrite)
+  k.build_output = uniescape(j.build_output)
+  if j.version.endswith("\0"):
+    k.version = k.version[0..^2]
+  f.store(k)
+  f.close()
+
+proc load_metadata(fn: string): PkgDocMetadata =
+  ## load package metadata
+  log_debug "Loading $#" % fn
+  load(newFileStream(fn, fmRead), result)
+
+proc scan_pkgs_dir(pkgs_root: string) =
+  ## scan all packages dirs, populate jsondoc_items and pkgs_doc_files
+  let pattern = pkgs_root / "*" / "nimpkgdir.json"
+  # e.g /var/lib/nim_package_directory/cache/*/nimpkgdir.json
+  log_info "scanning pattern '" & pattern & "'"
+  for x in walkPattern(pattern):
+    try:
+      let pm: PkgDocMetadata = load_metadata(x)
+    except:
+      # ignore metadata
+      log_info "Load error: " & getCurrentExceptionMsg()
+  log_info "----"
+  discard
 
 # volatile caches
 
@@ -454,7 +502,6 @@ proc fetch_github_versions(pkg: Pkg, owner_repo_name: string) =
     for v in version_names:
       if v.str > latest:
         latest = v.str
-
     if latest == "0":
       pkg["github_latest_version"] = newJString "none"
       pkg["github_latest_version_url"] = newJString ""
@@ -599,6 +646,12 @@ proc fetch_and_build_pkg_using_nimble_old(pname: string) {.async.} =
 #   pkgs_doc_files[pname].build_output = outp
 #   return true
 
+proc package_parent_dir(pname: string): string =
+  ## Generate pkg parent dir
+  # Full path example:
+  # /var/lib/nim_package_dir/nimgame2
+  conf.tmp_nimble_root_dir / pname
+
 proc locate_pkg_root_dir(pname: string): string =
   ## Locate installed pkg root dir
   # Full path example:
@@ -647,7 +700,12 @@ proc build_docs(pname: string) {.async.} =
       @["doc", "--index:on", fname],
     )
     let success = (po.exit_code == 0)
-    all_output.add((success, fname, desc, po.output))
+    all_output.add DocBuildOutItem(
+      success_flag:success,
+      filename:fname,
+      desc:desc,
+      output:po.output
+    )
     if success:
       # trim away <pkg_root_dir> and ".nim"
       let basename = fname[pkg_root_dir.len..^5]
@@ -669,6 +727,54 @@ proc build_docs(pname: string) {.async.} =
   pkgs_doc_files[pname].doc_build_status =
     if (input_fnames.len == generated_doc_fnames.len): BuildStatus.OK
     else: BuildStatus.Failed
+
+include "templates/jsondoc_items.tmpl"
+proc generate_jsondoc(pname: string) {.async.} =
+  ## Generate jsondoc items
+  let pkg_root_dir = locate_pkg_root_dir(pname)
+  log_debug "Walking ", pkg_root_dir
+
+  var input_fnames: seq[string] = @[]
+  for fname in pkg_root_dir.walkDirRec():
+    if fname.endswith(".nim"):
+      input_fnames.add fname
+
+  for fname in input_fnames:
+    let desc = "nim jsondoc $#" % fname
+    log_debug "running " & desc
+    let run_dir = fname.splitPath.head
+    let po = await run_process2(
+      nim_bin_path,
+      desc,
+      run_dir,
+      10,
+      true,
+      @["jsondoc", fname],
+    )
+    let success = (po.exit_code == 0)
+    if success:
+      # replace ".nim" with ".json"
+      let json_fn = fname[0..^5] & ".json"
+      try:
+        let j = parseJson(readFile(json_fn))
+        for chunk in j:
+          let item_name = chunk["name"].getStr()
+          let item = JsonDocPkgItem(
+            itype:chunk["type"].getStr(),
+            desc:chunk{"description"}.getStr(),
+            code:chunk["code"].getStr(),
+            filepath:fname[pkg_root_dir.len..^1],
+            line:chunk["line"].getInt(),
+            col:chunk["col"].getInt(),
+          )
+          if not jsondoc_items.hasKey(item_name):
+            jsondoc_items[item_name] = @[]
+          jsondoc_items[item_name].add(item)
+          log_debug jsondoc_items[item_name]
+
+      except:
+        log_debug "failed to read and parse " & json_fn & " : " & getCurrentExceptionMsg()
+
 
 proc fetch_and_build_pkg_if_needed(pname: string) {.async.} =
   ## Fetch package and build docs
@@ -733,7 +839,8 @@ proc fetch_and_build_pkg_if_needed(pname: string) {.async.} =
       pkgs_doc_files[pname].build_status,
       pkgs_doc_files[pname].doc_build_status
     )
-    return
+    save_pkg_metadata(pkgs_doc_files[pname], package_parent_dir(pname) & "/nimpkgdir.json")
+    return  # install failed
 
   stats.incr("build_succeded")
 
@@ -757,6 +864,21 @@ proc fetch_and_build_pkg_if_needed(pname: string) {.async.} =
   else:
     log_debug "FIXME github_latest_version"
     pkgs_doc_files[pname].version = "unknown"
+
+  try:
+    let t2 = epochTime()
+    await generate_jsondoc(pname)  # this can raise
+    let elapsed = epochTime() - t2
+    stats.gauge("jsondoc_build_time", elapsed)
+  except:
+    log.error("jsondoc failed for " & pname)
+
+  let fn = package_parent_dir(pname) & "/nimpkgdir.json"
+  save_pkg_metadata(pkgs_doc_files[pname], fn)
+  try:
+    let pm: PkgDocMetadata = load_metadata(fn)
+  except:
+    log.error("JSON: created broken file: " & fn)
 
 proc translate_term_colors*(outp: string): string =
   ## Translate terminal colors
@@ -1166,13 +1288,11 @@ routes:
     # The Running badge should only appear if there are bugs
     # in fetch_and_build_pkg_if_needed
 
-    let md =
-      try:
-        pkgs_doc_files[pname]
-      except KeyError:
+    if not pkgs_doc_files.hasKey(pname):
         log_info "missing pname, this is a bug"
         halt Http400
-        nil
+
+    let md = pkgs_doc_files[pname]
 
     let badge =
       case md.build_status
@@ -1198,13 +1318,11 @@ routes:
 
     await fetch_and_build_pkg_if_needed(pname)
 
-    let md =
-      try:
-        pkgs_doc_files[pname]
-      except KeyError:
+    if not pkgs_doc_files.hasKey(pname):
         log_info "missing pname, this is a bug"
         halt Http400
-        nil
+
+    let md = pkgs_doc_files[pname]
 
     # The Running badge should only appear if there the
     # nimble install failed
@@ -1279,6 +1397,19 @@ routes:
   get "/robots.txt":
     ## Serve robots.txt to throttle bots
     resp "User-agent: *\nCrawl-delay: 300\n"
+
+  get "/searchitem":
+    ## Search for jsondoc item
+    log_req request
+    stats.incr("views")
+    let query = @"query"
+    let jdi =
+      if jsondoc_items.hasKey(query):
+        jsondoc_items[query]
+      else:
+        @[]
+    let body = generate_jsondoc_items_page(jdi)
+    resp base_page(request, body)
 
 
 proc cleanupWhitespace(s: string): string =
@@ -1488,6 +1619,7 @@ proc main() =
   conf.tmp_nimble_root_dir.createDir()
   load_packages()
   cache = load_cache()
+  scan_pkgs_dir(conf.tmp_nimble_root_dir)
   #asyncCheck start_nim_commit_polling(github_nim_commit_polling_time)
   asyncCheck run_systemd_sdnotify_pinger(sdnotify_ping_time_s)
   asyncCheck run_github_packages_json_polling(github_packages_json_polling_time_s)

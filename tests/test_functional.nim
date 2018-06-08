@@ -22,7 +22,7 @@ if not existsEnv("NIMPKGDIR_ENABLE_FUNCTEST"):
 const url="http://localhost:5000"
 
 proc get(url: string): string =
-  echo "          Fetching $#" % url
+  echo "          fetching $#" % url
   return httpclient.getContent(url)
 
 
@@ -72,10 +72,19 @@ suite "functional tests":
     check page.contains """<?xml version="1.0" encoding="UTF-8" ?>"""
     check page.contains """<rss version="2.0">"""
 
-  # test "jsondoc":
-  #   var page = get url & "/searchitem?query=newSettings"
-  #   check page.contains "324"
-  #   check page.contains "getCurrentDir"
+  test "jester status.svg":
+    var page = get url & "/ci/badges/jester/nimdevel/status.svg"
+    check page.contains ">OK<"
+
+  test "jsondoc":
+    var page = get url & "/searchitem?query=newSettings"
+    check page.contains "324"
+    check page.contains "getCurrentDir"
+    check page.contains "1 entries found"
+    check page.contains "jester.nim"
+
+    page = get url & "/searchitem?query=nothingToBeFoundHere"
+    check page.contains "0 entries found"
 
   # test "/ci/install_report":
   #   discard
@@ -84,9 +93,6 @@ suite "functional tests":
   #   ## Version badge
   #   discard
 
-  # test "/ci/badges/@pkg_name/nim_version/status.svg":
-  #   ## Status badge
-  #   discard
 
 
 
