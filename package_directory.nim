@@ -83,7 +83,11 @@ let zmqsock = listen("tcp://*:" & $task_pubsub_port, mode=PUB)
 #    of "p": conf.port = val.parseInt.Port
 #  else: discard
 
-let log = newJournaldLogger()
+when defined(systemd):
+  let log = newJournaldLogger()
+else:
+  let log = newAsyncFileLogger()
+
 
 proc log_debug(args: varargs[string, `$`]) =
   log.debug(args.join(" "))
