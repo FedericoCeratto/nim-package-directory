@@ -7,7 +7,7 @@ jobs:
       - checkout
       # Reuse cached Nim compiler
       - restore_cache:
-          key: compiler-0001
+          key: compiler-0002
       - run:
           command: |
             if [ -f ~/.nimble/bin/choosenim ]; then
@@ -15,14 +15,11 @@ jobs:
               choosenim stable
             else
               echo "Installing choosenim and Nim"
-              mkdir ~/.choosenim -p
-              touch ~/.choosenim/analytics
               wget https://raw.githubusercontent.com/dom96/choosenim/master/scripts/choosenim-unix-init.sh
-              chmod +x choosenim-unix-init.sh
-              ./choosenim-unix-init.sh
+              sh choosenim-unix-init.sh -y
             fi
       - save_cache:
-          key: compiler-0001
+          key: compiler-0002
           paths:
             - ~/.nimble
             - ~/.choosenim
