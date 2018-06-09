@@ -55,14 +55,14 @@ const
   nim_bin_path = "/usr/bin/nim"
   nimble_bin_path = "/usr/bin/nimble"
   task_pubsub_port = 5583
-  build_expiry_time = 300.Time # 5 mins
+  build_expiry_time = (15 * 60).Time
   cache_fn = ".cache.json"
 
   xml_no_cache_headers = {
     "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0, proxy-revalidate, no-transform",
     "Expires": "0",
     "Pragma": "no-cache",
-    "ContentType": "image/svg+xml"
+    "Content-Type": "image/svg+xml"
   }
 
 
@@ -88,8 +88,18 @@ proc log_info(args: varargs[string, `$`]) =
 
 proc log_req(request: Request) =
   ## Log request data
-  #log_info "serving $# $# $#" % [request.ip, $request.reqMeth, request.path]
-  discard
+  var path = ""
+  for c in request.path:
+    if len(path) > 300:
+      path.add "..."
+      break
+    let o = c.ord
+    if o < 32 or o > 126:
+      path.add o.toHex()
+    else:
+      path.add c
+
+  log_info "serving $# $# $#" % [request.ip, $request.reqMeth, path]
 
 log_debug conf
 
@@ -211,7 +221,7 @@ proc save_pkg_metadata(j: PkgDocMetadata, fn: string) =
   let f = newFileStream(fn, fmWrite)
   k.build_output = uniescape(j.build_output)
   if j.version.endswith("\0"):
-    k.version = k.version[0..^2]
+    k.version = k.version.strip
   f.store(k)
   f.close()
 
@@ -489,9 +499,9 @@ proc fetch_github_versions(pkg: Pkg, owner_repo_name: string) =
   try:
     let latest_version = getContent(github_latest_version_tpl % owner_repo_name,
       extraHeaders=github_token).parseJson
-    var latest_version_name = latest_version["name"].str
+    var latest_version_name = latest_version["name"].str.strip
     if latest_version_name.startsWith("v"):
-      latest_version_name = latest_version_name[1..^0]
+      latest_version_name = latest_version_name.strip(trailing=false, chars={'v'})
     pkg["github_latest_version"] = newJString latest_version_name
     pkg["github_latest_version_url"] = newJString latest_version["tarball_url"].str
     pkg["github_latest_version_time"] = newJString latest_version["published_at"].str
@@ -506,7 +516,7 @@ proc fetch_github_versions(pkg: Pkg, owner_repo_name: string) =
       pkg["github_latest_version"] = newJString "none"
       pkg["github_latest_version_url"] = newJString ""
     else:
-      pkg["github_latest_version"] = newJString latest
+      pkg["github_latest_version"] = newJString latest.strip
       pkg["github_latest_version_url"] = newJString(
         "https://github.com/$#/archive/v$#.tar.gz" % [owner_repo_name, latest]
       )
@@ -776,7 +786,7 @@ proc generate_jsondoc(pname: string) {.async.} =
         log_debug "failed to read and parse " & json_fn & " : " & getCurrentExceptionMsg()
 
 
-proc fetch_and_build_pkg_if_needed(pname: string) {.async.} =
+proc fetch_and_build_pkg_if_needed(pname: string, force_rebuild=false) {.async.} =
   ## Fetch package and build docs
   ## Modifies pkgs_doc_files
 
@@ -798,7 +808,7 @@ proc fetch_and_build_pkg_if_needed(pname: string) {.async.} =
       if sleep_time_ms < 1000:
         sleep_time_ms *= 2
 
-    if pkgs_doc_files[pname].expire_time > getTime():
+    if not force_rebuild and pkgs_doc_files[pname].expire_time > getTime():
       # No need to rebuild yet
       return
 
@@ -860,10 +870,10 @@ proc fetch_and_build_pkg_if_needed(pname: string) {.async.} =
   )
 
   if pkgs[pname].hasKey("github_latest_version"):
-    pkgs_doc_files[pname].version = pkgs[pname]["github_latest_version"].str
+    pkgs_doc_files[pname].version = pkgs[pname]["github_latest_version"].str.strip
   else:
     log_debug "FIXME github_latest_version"
-    pkgs_doc_files[pname].version = "unknown"
+    pkgs_doc_files[pname].version = "?"
 
   try:
     let t2 = epochTime()
@@ -1258,7 +1268,11 @@ routes:
     await fetch_and_build_pkg_if_needed(pname)
     try:
       let md = pkgs_doc_files[pname]
-      let version = md.version
+      let version =
+        if md.version.endswith("\0"):
+          md.version[0..^2]
+        else:
+          md.version
       if version == nil:
         log_debug "Version is nil"
       let badge =
@@ -1395,6 +1409,28 @@ routes:
       ))
     except KeyError:
       halt Http400
+
+  get "/ci/status/@pkg_name":
+    ## Package build status in a simple JSON
+    log_req request
+    let pname = normalize(@"pkg_name")
+    let status =
+      if pkgs_doc_files.hasKey(pname):
+        if pkgs_doc_files[pname].building:
+          "building"
+        else:
+          "done"
+      else:
+        "unknown"
+    let s = %* {"status": status}
+    resp $s
+
+  post "/ci/rebuild/@pkg_name":
+    ## Force new build
+    log_req request
+    let pname = normalize(@"pkg_name")
+    asyncCheck fetch_and_build_pkg_if_needed(pname, force_rebuild=true)
+    resp "ok"
 
   get "/robots.txt":
     ## Serve robots.txt to throttle bots
