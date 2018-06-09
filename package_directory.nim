@@ -46,7 +46,6 @@ const
   github_latest_version_tpl = "https://api.github.com/repos/$#/releases/latest"
   github_doc_index_tpl = "https://$#.github.io/$#/index.html"
   github_repository_search_tpl = "https://api.github.com/search/repositories?q=language:nim+pushed:>$#&per_page=$#sort=$#&page=$#"
-  github_readme_header = "Accept:application/vnd.github.v3.html\c\L"
   github_caching_time = 600
   github_packages_json_raw_url= "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json"
   github_packages_json_polling_time_s = 10 * 60
@@ -70,7 +69,8 @@ const
 # init
 
 let conf = load_conf()
-let github_token = "Authorization: token $#\c\L" % conf.github_token
+let github_token_headers = newHttpHeaders({
+  "Authorization": "token $#" % conf.github_token})
 let stats = newStatdClient(prefix="nim_package_directory")
 let zmqsock = listen("tcp://*:" & $task_pubsub_port, mode=PUB)
 
@@ -108,7 +108,6 @@ type
   Pkg* = JsonNode
   Pkgs* = TableRef[string, Pkg]
   strSeq = seq[string]
-  PkgName = distinct string
   BuildStatus {.pure.} = enum OK, Failed, Timeout, Running
   DocBuildOutItem = object
     success_flag: bool
@@ -220,8 +219,9 @@ proc save_pkg_metadata(j: PkgDocMetadata, fn: string) =
   deepCopy[PkgDocMetadata](k, j)
   let f = newFileStream(fn, fmWrite)
   k.build_output = uniescape(j.build_output)
-  if j.version.endswith("\0"):
-    k.version = k.version.strip
+  if k.version == nil:
+    k.version = "?"
+  k.version = k.version.strip(chars={'\0'})
   f.store(k)
   f.close()
 
@@ -256,7 +256,6 @@ include "templates/base.tmpl"
 include "templates/home.tmpl"
 include "templates/pkg.tmpl"
 include "templates/pkg_list.tmpl"
-include "templates/doc_files_list.tmpl"
 include "templates/loader.tmpl"
 include "templates/rss.tmpl"
 include "templates/build_output.tmpl"
@@ -356,12 +355,21 @@ proc search_packages*(query: string): CountTable[string] =
   found_pkg_names.sort()
   return found_pkg_names
 
-proc fetch_github_readme*(pkg: Pkg, owner_repo_name: string) =
+proc getGHJson(url: string): Future[JsonNode] {.async.} =
+  ## async get JSON from GH
+  let ac = newAsyncHttpClient()
+  ac.headers = github_token_headers
+  let r = await ac.getContent(url)
+  return parseJson(r)
+
+proc fetch_github_readme*(pkg: Pkg, owner_repo_name: string) {.async.} =
   ## Fetch README.* from GitHub
   log_debug "fetching GH readme ", github_readme_tpl % owner_repo_name
   try:
-    let readme = getContent(github_readme_tpl % owner_repo_name,
-    extraHeaders=github_readme_header & github_token)
+    let ac = newAsyncHttpClient()
+    ac.headers = github_token_headers
+    ac.headers["Accept"] = "application/vnd.github.v3.html"
+    let readme = await ac.getContent(github_readme_tpl % owner_repo_name)
     pkg["github_readme"] = newJString readme
   except:
     log_debug "failed to fetch GH readme"
@@ -471,14 +479,16 @@ proc run_process2(bin_path, desc, work_dir: string,
   return (exit_code, elapsed, output)
 
 
-proc fetch_github_versions(pkg: Pkg, owner_repo_name: string) =
+proc fetch_github_versions(pkg: Pkg, owner_repo_name: string) {.async.} =
   ## Fetch versions from GH from releases and tags
   ## Set github_versions, github_latest_version, github_latest_version_url
   log_debug "fetching GH tags ", github_tags_tpl % owner_repo_name
   var version_names = newJArray()
   try:
-    let tags = getContent(github_tags_tpl % owner_repo_name,
-    extraHeaders=github_token).parseJson
+    let ac = newAsyncHttpClient()
+    ac.headers = github_token_headers
+    let rtags = await ac.getContent(github_tags_tpl % owner_repo_name)
+    let tags = parseJson(rtags)
     for t in tags:
       var name = t["name"].str
       if name.startsWith("v"):
@@ -497,8 +507,7 @@ proc fetch_github_versions(pkg: Pkg, owner_repo_name: string) =
 
   log_debug "fetching GH latest vers ", github_latest_version_tpl % owner_repo_name
   try:
-    let latest_version = getContent(github_latest_version_tpl % owner_repo_name,
-      extraHeaders=github_token).parseJson
+    let latest_version = await getGHJson(github_latest_version_tpl % owner_repo_name)
     var latest_version_name = latest_version["name"].str.strip
     if latest_version_name.startsWith("v"):
       latest_version_name = latest_version_name.strip(trailing=false, chars={'v'})
@@ -523,17 +532,18 @@ proc fetch_github_versions(pkg: Pkg, owner_repo_name: string) =
 
     pkg["github_latest_version_time"] = newJString ""
 
-proc fetch_github_repository_stats(sorting="updated", pagenum=1, limit=200, initial_date: TimeInfo): seq[JsonNode] =
+proc fetch_github_repository_stats(sorting="updated", pagenum=1, limit=200, initial_date: TimeInfo):
+    Future[seq[JsonNode]] {.async.} =
   ## Fetch projects on GitHub
   let date = initial_date.format("yyyy-MM-dd")
   let q = github_repository_search_tpl % [date, $limit, sorting, $pagenum]
   log_info "Searching GH repos: '$#'" % q
-  let query_res = getContent(q, extraHeaders=github_token).parseJson
+  let query_res = await getGHJson(q)
   if sorting == "updated":
     return query_res["items"].elems.sortedByIt(it["updated_at"].str).reversed()
   return query_res["items"].elems
 
-proc github_trending_packages(request: Request, pkgs: Pkgs): seq[JsonNode] =
+proc github_trending_packages(request: Request, pkgs: Pkgs): Future[seq[JsonNode]] {.async.} =
   ## Trending GitHub packages
   # TODO: Dom: merge this into the procedure above ^
 
@@ -542,7 +552,7 @@ proc github_trending_packages(request: Request, pkgs: Pkgs): seq[JsonNode] =
     return volatile_cache_github_trending
 
   result = @[]
-  let pkgs_list = fetch_github_repository_stats(
+  let pkgs_list = await fetch_github_repository_stats(
     sorting="updated", pagenum=1, limit=20,
     initial_date=utc(getTime() - 14.days)
   )
@@ -960,7 +970,7 @@ routes:
           else:
             log_debug "$# not found in package list" % pname
 
-      let github_trending = github_trending_packages(request, pkgs)
+      let github_trending = waitFor github_trending_packages(request, pkgs)
 
       let home = generate_home_page(top_pkgs, new_pkgs,
                                     github_trending)
@@ -1011,8 +1021,8 @@ routes:
         if owner_repo_name.endswith(".git"):
           owner_repo_name = owner_repo_name[0..^5]
         pkg["github_owner"] = newJString owner
-        pkg.fetch_github_readme(owner_repo_name)
-        pkg.fetch_github_versions(owner_repo_name)
+        waitFor pkg.fetch_github_readme(owner_repo_name)
+        waitFor pkg.fetch_github_versions(owner_repo_name)
         pkg.fetch_github_doc_pages(owner, repo_name)
 
     resp base_page(request, generate_pkg_page(pkg))
@@ -1085,6 +1095,7 @@ routes:
     stats.incr("views")
     resp conf.packages_list_fname.readFile
 
+  include "templates/doc_files_list.tmpl"
   get "/docs/@pkg_name/?":
     ## Serve hosted docs for a package: summary page
     log_req request
@@ -1094,7 +1105,6 @@ routes:
       resp base_page(request, "<p>Package not found</p>")
 
     most_queried_packages.inc pname
-    let pkg = pkgs[pname]
 
     # Check out pkg and build docs. Modifies pkgs_doc_files
     await fetch_and_build_pkg_if_needed(pname)
@@ -1111,8 +1121,6 @@ routes:
     let pname = normalize(@"pkg_name")
     if not pkgs.hasKey(pname):
       resp base_page(request, "<p>Package not found</p>")
-
-    let pkg = pkgs[pname]
 
     # Check out pkg and build docs. Modifies pkgs_doc_files
     #await fetch_and_build_pkg_if_needed(pname)
@@ -1146,7 +1154,6 @@ routes:
       resp base_page(request, "<p>Package not found</p>")
 
     most_queried_packages.inc pname
-    let pkg = pkgs[pname]
 
     # Check out pkg and build docs. Modifies pkgs_doc_files
     await fetch_and_build_pkg_if_needed(pname)
@@ -1269,17 +1276,11 @@ routes:
     try:
       let md = pkgs_doc_files[pname]
       let version =
-        if md.version.endswith("\0"):
-          md.version[0..^2]
+        if md.version == nil:
+          "?"
         else:
-          md.version
-      if version == nil:
-        log_debug "Version is nil"
-      let badge =
-        if version == nil:
-          version_badge_tpl % ["none", "none"]
-        else:
-          version_badge_tpl % [version, version]
+          md.version.strip(chars={'\0'})
+      let badge = version_badge_tpl % [version, version]
       resp(Http200, xml_no_cache_headers, badge)
     except:
       log_debug getCurrentExceptionMsg()
