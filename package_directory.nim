@@ -1247,7 +1247,7 @@ routes:
     discard
 
   get "/ci/badges/@pkg_name/version.svg":
-    ## Version badge
+    ## Version badge. Set HTTP headers to control caching.
     log_req request
     stats.incr("views")
     let pname = normalize(@"pkg_name")
@@ -1274,6 +1274,7 @@ routes:
 
   get "/ci/badges/@pkg_name/nimdevel/status.svg":
     ## Status badge
+    ## Set HTTP headers to control caching.
     log_req request
     stats.incr("views")
     let pname = normalize(@"pkg_name")
@@ -1308,6 +1309,7 @@ routes:
 
   get "/ci/badges/@pkg_name/nimdevel/docstatus.svg":
     ## Doc build status badge
+    ## Set HTTP headers to control caching.
     log_req request
     stats.incr("views")
     let pname = normalize(@"pkg_name")
