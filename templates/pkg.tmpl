@@ -2,9 +2,11 @@
 #proc generate_pkg_page(pkg: Pkg): string =
 #  result = ""
 
+# let pname = pkg["name"].str
+
 <div class="columns">
   <div class="column col-9">
-    <h3>${pkg["name"].str}</h3>
+    <h3>${pname}</h3>
     #for tag in pkg["tags"]:
       <label class="chip">
         <a href="/search?query=$tag.str">
@@ -33,7 +35,7 @@
       <div class="tile-content">
         <div class="tile-title">
           <tt>
-            <input id="cmd" onClick="this.select();" value="nimble install ${pkg["name"].str}" readonly />
+            <input id="cmd" onClick="this.select();" value="nimble install ${pname}" readonly />
             <a title="Copy" onClick="document.querySelector('#cmd').select();document.execCommand('copy');"><i class="fa fa-copy"></i></a>
           </tt>
         </div>
@@ -109,25 +111,24 @@
             <a href="http://www.wtfpl.net">WTFPL</a>
     #     else:
             ${pkg["license"].str}
+    #     end
         </div>
       </div>
     </div>
     <div class="tile tile-centered divided">
       <div class="tile-content">
         <div>
-          <a href="/ci/badges/${pkg["name"].str}/nimdevel/output.html">
-            <img class="slickbadge"
-              src="/ci/badges/${pkg["name"].str}/version.svg">
+          <a href="/ci/badges/${pname}/nimdevel/output.html">
+            <img class="slickbadge" id="versionbadge">
           </a>
-          <a href="/ci/badges/${pkg["name"].str}/nimdevel/output.html">
-            <img class="slickbadge"
-               src="/ci/badges/${pkg["name"].str}/nimdevel/status.svg">
+          <a href="/ci/badges/${pname}/nimdevel/output.html">
+            <img class="slickbadge" id="statusbadge">
           </a>
-          <a href="/ci/badges/${pkg["name"].str}/nimdevel/doc_build_output.html">
-            <img class="slickbadge"
-               src="/ci/badges/${pkg["name"].str}/nimdevel/docstatus.svg">
+          <a href="/ci/badges/${pname}/nimdevel/doc_build_output.html">
+            <img class="slickbadge" id="docstatusbadge">
           </a>
         </div>
+        <button class="btn btn-sm" id="rebuildbtn">rebuild now</button>
       </div>
     </div>
 
@@ -145,14 +146,37 @@
         #end if
         #let url = pkg["url"].str
         #if url.startswith("https://github.com/") or url.startswith("http://github.com/") or url.startswith("git"):
-          <a class="btn input-group-btn" href="/docs/${pkg["name"].str}">
+          <a class="btn input-group-btn" href="/docs/${pname}">
             <i class="fa fa-book"></i> Hosted docs
           </a>
         #end if
+
+        <script>
+          function reload_badges() {
+            $$("#versionbadge").attr("src", "/ci/badges/${pname}/version.svg");
+            $$("#statusbadge").attr("src", "/ci/badges/${pname}/nimdevel/status.svg");
+            $$("#docstatusbadge").attr("src", "/ci/badges/${pname}/nimdevel/docstatus.svg");
+          }
+          function reload_rebuildbtn() {
+            $$.getJSON( "/ci/status/${pname}", function(resp) {
+              if (resp.status == "building") {
+                $$("#rebuildbtn").addClass("loading");
+              } else {
+                $$("#rebuildbtn").removeClass("loading");
+                reload_badges();
+              }
+            });
+          }
+          $$("#rebuildbtn").click(function() {
+            $$.post("/ci/rebuild/${pname}");
+            $$("#rebuildbtn").addClass("loading");
+          });
+          setInterval(reload_rebuildbtn, 5000);
+          reload_rebuildbtn();
+        </script>
+
       </div>
     </div>
-
-
 
   </div>
 </div>

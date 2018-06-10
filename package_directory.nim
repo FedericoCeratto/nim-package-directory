@@ -46,7 +46,6 @@ const
   github_latest_version_tpl = "https://api.github.com/repos/$#/releases/latest"
   github_doc_index_tpl = "https://$#.github.io/$#/index.html"
   github_repository_search_tpl = "https://api.github.com/search/repositories?q=language:nim+pushed:>$#&per_page=$#sort=$#&page=$#"
-  github_readme_header = "Accept:application/vnd.github.v3.html\c\L"
   github_caching_time = 600
   github_packages_json_raw_url= "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json"
   github_packages_json_polling_time_s = 10 * 60
@@ -55,14 +54,14 @@ const
   nim_bin_path = "/usr/bin/nim"
   nimble_bin_path = "/usr/bin/nimble"
   task_pubsub_port = 5583
-  build_expiry_time = 300.Time # 5 mins
+  build_expiry_time = (15 * 60).Time
   cache_fn = ".cache.json"
 
   xml_no_cache_headers = {
     "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0, proxy-revalidate, no-transform",
     "Expires": "0",
     "Pragma": "no-cache",
-    "ContentType": "image/svg+xml"
+    "Content-Type": "image/svg+xml"
   }
 
 
@@ -70,7 +69,8 @@ const
 # init
 
 let conf = load_conf()
-let github_token = "Authorization: token $#\c\L" % conf.github_token
+let github_token_headers = newHttpHeaders({
+  "Authorization": "token $#" % conf.github_token})
 let stats = newStatdClient(prefix="nim_package_directory")
 let zmqsock = listen("tcp://*:" & $task_pubsub_port, mode=PUB)
 
@@ -88,8 +88,18 @@ proc log_info(args: varargs[string, `$`]) =
 
 proc log_req(request: Request) =
   ## Log request data
-  #log_info "serving $# $# $#" % [request.ip, $request.reqMeth, request.path]
-  discard
+  var path = ""
+  for c in request.path:
+    if len(path) > 300:
+      path.add "..."
+      break
+    let o = c.ord
+    if o < 32 or o > 126:
+      path.add o.toHex()
+    else:
+      path.add c
+
+  log_info "serving $# $# $#" % [request.ip, $request.reqMeth, path]
 
 log_debug conf
 
@@ -98,7 +108,6 @@ type
   Pkg* = JsonNode
   Pkgs* = TableRef[string, Pkg]
   strSeq = seq[string]
-  PkgName = distinct string
   BuildStatus {.pure.} = enum OK, Failed, Timeout, Running
   DocBuildOutItem = object
     success_flag: bool
@@ -210,8 +219,9 @@ proc save_pkg_metadata(j: PkgDocMetadata, fn: string) =
   deepCopy[PkgDocMetadata](k, j)
   let f = newFileStream(fn, fmWrite)
   k.build_output = uniescape(j.build_output)
-  if j.version.endswith("\0"):
-    k.version = k.version[0..^2]
+  if k.version == nil:
+    k.version = "?"
+  k.version = k.version.strip(chars={'\0'})
   f.store(k)
   f.close()
 
@@ -246,7 +256,6 @@ include "templates/base.tmpl"
 include "templates/home.tmpl"
 include "templates/pkg.tmpl"
 include "templates/pkg_list.tmpl"
-include "templates/doc_files_list.tmpl"
 include "templates/loader.tmpl"
 include "templates/rss.tmpl"
 include "templates/build_output.tmpl"
@@ -346,12 +355,21 @@ proc search_packages*(query: string): CountTable[string] =
   found_pkg_names.sort()
   return found_pkg_names
 
-proc fetch_github_readme*(pkg: Pkg, owner_repo_name: string) =
+proc getGHJson(url: string): Future[JsonNode] {.async.} =
+  ## async get JSON from GH
+  let ac = newAsyncHttpClient()
+  ac.headers = github_token_headers
+  let r = await ac.getContent(url)
+  return parseJson(r)
+
+proc fetch_github_readme*(pkg: Pkg, owner_repo_name: string) {.async.} =
   ## Fetch README.* from GitHub
   log_debug "fetching GH readme ", github_readme_tpl % owner_repo_name
   try:
-    let readme = getContent(github_readme_tpl % owner_repo_name,
-    extraHeaders=github_readme_header & github_token)
+    let ac = newAsyncHttpClient()
+    ac.headers = github_token_headers
+    ac.headers["Accept"] = "application/vnd.github.v3.html"
+    let readme = await ac.getContent(github_readme_tpl % owner_repo_name)
     pkg["github_readme"] = newJString readme
   except:
     log_debug "failed to fetch GH readme"
@@ -461,14 +479,16 @@ proc run_process2(bin_path, desc, work_dir: string,
   return (exit_code, elapsed, output)
 
 
-proc fetch_github_versions(pkg: Pkg, owner_repo_name: string) =
+proc fetch_github_versions(pkg: Pkg, owner_repo_name: string) {.async.} =
   ## Fetch versions from GH from releases and tags
   ## Set github_versions, github_latest_version, github_latest_version_url
   log_debug "fetching GH tags ", github_tags_tpl % owner_repo_name
   var version_names = newJArray()
   try:
-    let tags = getContent(github_tags_tpl % owner_repo_name,
-    extraHeaders=github_token).parseJson
+    let ac = newAsyncHttpClient()
+    ac.headers = github_token_headers
+    let rtags = await ac.getContent(github_tags_tpl % owner_repo_name)
+    let tags = parseJson(rtags)
     for t in tags:
       var name = t["name"].str
       if name.startsWith("v"):
@@ -487,11 +507,10 @@ proc fetch_github_versions(pkg: Pkg, owner_repo_name: string) =
 
   log_debug "fetching GH latest vers ", github_latest_version_tpl % owner_repo_name
   try:
-    let latest_version = getContent(github_latest_version_tpl % owner_repo_name,
-      extraHeaders=github_token).parseJson
-    var latest_version_name = latest_version["name"].str
+    let latest_version = await getGHJson(github_latest_version_tpl % owner_repo_name)
+    var latest_version_name = latest_version["name"].str.strip
     if latest_version_name.startsWith("v"):
-      latest_version_name = latest_version_name[1..^0]
+      latest_version_name = latest_version_name.strip(trailing=false, chars={'v'})
     pkg["github_latest_version"] = newJString latest_version_name
     pkg["github_latest_version_url"] = newJString latest_version["tarball_url"].str
     pkg["github_latest_version_time"] = newJString latest_version["published_at"].str
@@ -506,24 +525,25 @@ proc fetch_github_versions(pkg: Pkg, owner_repo_name: string) =
       pkg["github_latest_version"] = newJString "none"
       pkg["github_latest_version_url"] = newJString ""
     else:
-      pkg["github_latest_version"] = newJString latest
+      pkg["github_latest_version"] = newJString latest.strip
       pkg["github_latest_version_url"] = newJString(
         "https://github.com/$#/archive/v$#.tar.gz" % [owner_repo_name, latest]
       )
 
     pkg["github_latest_version_time"] = newJString ""
 
-proc fetch_github_repository_stats(sorting="updated", pagenum=1, limit=200, initial_date: TimeInfo): seq[JsonNode] =
+proc fetch_github_repository_stats(sorting="updated", pagenum=1, limit=200, initial_date: TimeInfo):
+    Future[seq[JsonNode]] {.async.} =
   ## Fetch projects on GitHub
   let date = initial_date.format("yyyy-MM-dd")
   let q = github_repository_search_tpl % [date, $limit, sorting, $pagenum]
   log_info "Searching GH repos: '$#'" % q
-  let query_res = getContent(q, extraHeaders=github_token).parseJson
+  let query_res = await getGHJson(q)
   if sorting == "updated":
     return query_res["items"].elems.sortedByIt(it["updated_at"].str).reversed()
   return query_res["items"].elems
 
-proc github_trending_packages(request: Request, pkgs: Pkgs): seq[JsonNode] =
+proc github_trending_packages(request: Request, pkgs: Pkgs): Future[seq[JsonNode]] {.async.} =
   ## Trending GitHub packages
   # TODO: Dom: merge this into the procedure above ^
 
@@ -532,7 +552,7 @@ proc github_trending_packages(request: Request, pkgs: Pkgs): seq[JsonNode] =
     return volatile_cache_github_trending
 
   result = @[]
-  let pkgs_list = fetch_github_repository_stats(
+  let pkgs_list = await fetch_github_repository_stats(
     sorting="updated", pagenum=1, limit=20,
     initial_date=utc(getTime() - 14.days)
   )
@@ -776,7 +796,7 @@ proc generate_jsondoc(pname: string) {.async.} =
         log_debug "failed to read and parse " & json_fn & " : " & getCurrentExceptionMsg()
 
 
-proc fetch_and_build_pkg_if_needed(pname: string) {.async.} =
+proc fetch_and_build_pkg_if_needed(pname: string, force_rebuild=false) {.async.} =
   ## Fetch package and build docs
   ## Modifies pkgs_doc_files
 
@@ -798,7 +818,7 @@ proc fetch_and_build_pkg_if_needed(pname: string) {.async.} =
       if sleep_time_ms < 1000:
         sleep_time_ms *= 2
 
-    if pkgs_doc_files[pname].expire_time > getTime():
+    if not force_rebuild and pkgs_doc_files[pname].expire_time > getTime():
       # No need to rebuild yet
       return
 
@@ -860,10 +880,10 @@ proc fetch_and_build_pkg_if_needed(pname: string) {.async.} =
   )
 
   if pkgs[pname].hasKey("github_latest_version"):
-    pkgs_doc_files[pname].version = pkgs[pname]["github_latest_version"].str
+    pkgs_doc_files[pname].version = pkgs[pname]["github_latest_version"].str.strip
   else:
     log_debug "FIXME github_latest_version"
-    pkgs_doc_files[pname].version = "unknown"
+    pkgs_doc_files[pname].version = "?"
 
   try:
     let t2 = epochTime()
@@ -950,7 +970,7 @@ routes:
           else:
             log_debug "$# not found in package list" % pname
 
-      let github_trending = github_trending_packages(request, pkgs)
+      let github_trending = waitFor github_trending_packages(request, pkgs)
 
       let home = generate_home_page(top_pkgs, new_pkgs,
                                     github_trending)
@@ -1001,8 +1021,8 @@ routes:
         if owner_repo_name.endswith(".git"):
           owner_repo_name = owner_repo_name[0..^5]
         pkg["github_owner"] = newJString owner
-        pkg.fetch_github_readme(owner_repo_name)
-        pkg.fetch_github_versions(owner_repo_name)
+        waitFor pkg.fetch_github_readme(owner_repo_name)
+        waitFor pkg.fetch_github_versions(owner_repo_name)
         pkg.fetch_github_doc_pages(owner, repo_name)
 
     resp base_page(request, generate_pkg_page(pkg))
@@ -1075,6 +1095,7 @@ routes:
     stats.incr("views")
     resp conf.packages_list_fname.readFile
 
+  include "templates/doc_files_list.tmpl"
   get "/docs/@pkg_name/?":
     ## Serve hosted docs for a package: summary page
     log_req request
@@ -1084,7 +1105,6 @@ routes:
       resp base_page(request, "<p>Package not found</p>")
 
     most_queried_packages.inc pname
-    let pkg = pkgs[pname]
 
     # Check out pkg and build docs. Modifies pkgs_doc_files
     await fetch_and_build_pkg_if_needed(pname)
@@ -1101,8 +1121,6 @@ routes:
     let pname = normalize(@"pkg_name")
     if not pkgs.hasKey(pname):
       resp base_page(request, "<p>Package not found</p>")
-
-    let pkg = pkgs[pname]
 
     # Check out pkg and build docs. Modifies pkgs_doc_files
     #await fetch_and_build_pkg_if_needed(pname)
@@ -1136,7 +1154,6 @@ routes:
       resp base_page(request, "<p>Package not found</p>")
 
     most_queried_packages.inc pname
-    let pkg = pkgs[pname]
 
     # Check out pkg and build docs. Modifies pkgs_doc_files
     await fetch_and_build_pkg_if_needed(pname)
@@ -1247,7 +1264,7 @@ routes:
     discard
 
   get "/ci/badges/@pkg_name/version.svg":
-    ## Version badge
+    ## Version badge. Set HTTP headers to control caching.
     log_req request
     stats.incr("views")
     let pname = normalize(@"pkg_name")
@@ -1258,14 +1275,12 @@ routes:
     await fetch_and_build_pkg_if_needed(pname)
     try:
       let md = pkgs_doc_files[pname]
-      let version = md.version
-      if version == nil:
-        log_debug "Version is nil"
-      let badge =
-        if version == nil:
-          version_badge_tpl % ["none", "none"]
+      let version =
+        if md.version == nil:
+          "?"
         else:
-          version_badge_tpl % [version, version]
+          md.version.strip(chars={'\0'})
+      let badge = version_badge_tpl % [version, version]
       resp(Http200, xml_no_cache_headers, badge)
     except:
       log_debug getCurrentExceptionMsg()
@@ -1274,6 +1289,7 @@ routes:
 
   get "/ci/badges/@pkg_name/nimdevel/status.svg":
     ## Status badge
+    ## Set HTTP headers to control caching.
     log_req request
     stats.incr("views")
     let pname = normalize(@"pkg_name")
@@ -1308,6 +1324,7 @@ routes:
 
   get "/ci/badges/@pkg_name/nimdevel/docstatus.svg":
     ## Doc build status badge
+    ## Set HTTP headers to control caching.
     log_req request
     stats.incr("views")
     let pname = normalize(@"pkg_name")
@@ -1393,6 +1410,28 @@ routes:
       ))
     except KeyError:
       halt Http400
+
+  get "/ci/status/@pkg_name":
+    ## Package build status in a simple JSON
+    log_req request
+    let pname = normalize(@"pkg_name")
+    let status =
+      if pkgs_doc_files.hasKey(pname):
+        if pkgs_doc_files[pname].building:
+          "building"
+        else:
+          "done"
+      else:
+        "unknown"
+    let s = %* {"status": status}
+    resp $s
+
+  post "/ci/rebuild/@pkg_name":
+    ## Force new build
+    log_req request
+    let pname = normalize(@"pkg_name")
+    asyncCheck fetch_and_build_pkg_if_needed(pname, force_rebuild=true)
+    resp "ok"
 
   get "/robots.txt":
     ## Serve robots.txt to throttle bots

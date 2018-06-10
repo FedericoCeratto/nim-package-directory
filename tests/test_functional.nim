@@ -76,6 +76,10 @@ suite "functional tests":
     var page = get url & "/ci/badges/jester/nimdevel/status.svg"
     check page.contains ">OK<"
 
+  test "jester version.svg":
+    var page = get url & "/ci/badges/jester/version.svg"
+    check page.contains "version"
+
   test "jsondoc":
     var page = get url & "/searchitem?query=newSettings"
     check page.contains "324"
