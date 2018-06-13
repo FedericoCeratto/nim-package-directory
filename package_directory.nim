@@ -497,9 +497,7 @@ proc fetch_github_versions(pkg: Pkg, owner_repo_name: string) {.async.} =
     let rtags = await ac.getContent(github_tags_tpl % owner_repo_name)
     let tags = parseJson(rtags)
     for t in tags:
-      var name = t["name"].str
-      if name.startsWith("v"):
-        name = name[1..^0]
+      let name = t["name"].str.strip(trailing=false, chars={'v'})
       if name.len > 0:
         version_names.add newJString name
   except:

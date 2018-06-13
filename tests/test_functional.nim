@@ -53,6 +53,7 @@ suite "functional tests":
     check page.contains "Jester provides a DSL"
     # Check string from the GH readme
     check page.contains "Routes will be executed in the order"
+    check page.contains "0.2.0"
 
   test "fetch packages.json":
     var page = get url & "/packages.json"

@@ -64,7 +64,7 @@
         #if pkg["github_versions"].getElems().len > 0:
           Available versions:
         #  for semver in pkg["github_versions"].getElems():
-            <label class="chip"><b>${semver}</b></label>
+            <label class="chip"><b>${semver.str}</b></label>
         #  end
           <br>
         #else:
