@@ -25,6 +25,11 @@ proc get(url: string): string =
   echo "          fetching $#" % url
   return httpclient.getContent(url)
 
+proc post(url: string): string =
+  echo "          post to $#" % url
+  return httpclient.postContent(url)
+
+
 
 suite "functional tests":
 
@@ -87,8 +92,32 @@ suite "functional tests":
     check page.contains "1 entries found"
     check page.contains "jester.nim"
 
-    page = get url & "/searchitem?query=nothingToBeFoundHere"
-    check page.contains "0 entries found"
+    test "global symbol search - empty":
+      var page = get url & "/searchitem?query=nothingToBeFoundHere"
+      check page.contains "0 entries found"
+
+    test "global symbol search - normalizeUri":
+      # assumes jester has been built
+      var page = get url & "/searchitem?query=normalizeUri"
+      check page.contains "1 entries found"
+      # TODO: fix page style and content
+
+    test "package symbol search - normalizeUri":
+      # assumes jester has been built
+      var page = post url & "/searchitem_pkg?pkg_name=jester&query=normalizeUri"
+      check page.contains "1 entries found"
+
+    test "package symbol search - sendHeaders":
+      # assumes jester has been built
+      var page = post url & "/searchitem_pkg?pkg_name=jester&query=sendHeaders"
+      check page.contains "3 entries found"
+      check page.contains "Filename: jester.nim"
+      check page.contains "Type: skProc"
+      check page.contains "https://github.com/dom96/jester/blob/master/jester.nim#L95"
+      check page.contains "https://github.com/dom96/jester/blob/master/jester.nim#L108"
+      check page.contains "https://github.com/dom96/jester/blob/master/jester.nim#L113"
+
+    #TODO: API
 
   # test "/ci/install_report":
   #   discard

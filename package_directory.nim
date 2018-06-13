@@ -133,10 +133,10 @@ type
     build_time: Time
     build_status: BuildStatus
     doc_build_status: BuildStatus
-  JsonDocPkgItem = object
+  PkgSymbol = object
     code, desc, itype, filepath: string
     line, col: int
-  JsonDocPkgItems = seq[JsonDocPkgItem]
+  PkgSymbols = seq[PkgSymbol]
 
 # the pkg name is normalized
 var pkgs: Pkgs = newTable[string, Pkg]()
@@ -153,9 +153,14 @@ var packages_by_tag = newTable[string, seq[string]]()
 # initialized/updated by load_packages
 var packages_by_description_word = newTable[string, seq[string]]()
 
-# package access statistics
+# symbol -> seq[PkgSymbol]
 # initialized by scan_pkgs_dir
-var jsondoc_items = newTable[string, JsonDocPkgItems]()
+var jsondoc_symbols = newTable[string, PkgSymbols]()
+
+# pname, symbol -> seq[PkgSymbol]
+# initialized by scan_pkgs_dir
+type PkgSymbolsIndexer = tuple[pname, symbol: string]
+var jsondoc_symbols_by_pkg = newTable[PkgSymbolsIndexer, PkgSymbols]()
 
 # package access statistics
 # volatile
@@ -231,13 +236,15 @@ proc load_metadata(fn: string): PkgDocMetadata =
   load(newFileStream(fn, fmRead), result)
 
 proc scan_pkgs_dir(pkgs_root: string) =
-  ## scan all packages dirs, populate jsondoc_items and pkgs_doc_files
+  ## scan all packages dirs, populate jsondoc_symbols,
+  ## jsondoc_symbols_by_pkg and pkgs_doc_files
   let pattern = pkgs_root / "*" / "nimpkgdir.json"
   # e.g /var/lib/nim_package_directory/cache/*/nimpkgdir.json
   log_info "scanning pattern '" & pattern & "'"
   for x in walkPattern(pattern):
     try:
       let pm: PkgDocMetadata = load_metadata(x)
+      # TODO jsondoc_symbols, jsondoc_symbols_by_pkg
     except:
       # ignore metadata
       log_info "Load error: " & getCurrentExceptionMsg()
@@ -748,9 +755,9 @@ proc build_docs(pname: string) {.async.} =
     if (input_fnames.len == generated_doc_fnames.len): BuildStatus.OK
     else: BuildStatus.Failed
 
-include "templates/jsondoc_items.tmpl"
 proc generate_jsondoc(pname: string) {.async.} =
-  ## Generate jsondoc items
+  ## Generate jsondoc items, add them to the global `jsondoc_symbols`
+  ## and `jsondoc_symbols_by_pkg`
   let pkg_root_dir = locate_pkg_root_dir(pname)
   log_debug "Walking ", pkg_root_dir
 
@@ -778,8 +785,8 @@ proc generate_jsondoc(pname: string) {.async.} =
       try:
         let j = parseJson(readFile(json_fn))
         for chunk in j:
-          let item_name = chunk["name"].getStr()
-          let item = JsonDocPkgItem(
+          let symbol_name = chunk["name"].getStr()
+          let symbol = PkgSymbol(
             itype:chunk["type"].getStr(),
             desc:chunk{"description"}.getStr(),
             code:chunk["code"].getStr(),
@@ -787,10 +794,16 @@ proc generate_jsondoc(pname: string) {.async.} =
             line:chunk["line"].getInt(),
             col:chunk["col"].getInt(),
           )
-          if not jsondoc_items.hasKey(item_name):
-            jsondoc_items[item_name] = @[]
-          jsondoc_items[item_name].add(item)
-          log_debug jsondoc_items[item_name]
+          if not jsondoc_symbols.hasKey(symbol_name):
+            jsondoc_symbols[symbol_name] = @[]
+          jsondoc_symbols[symbol_name].add(symbol)
+
+          let i:PkgSymbolsIndexer = (pname, symbol_name)
+          if not jsondoc_symbols_by_pkg.hasKey(i):
+            jsondoc_symbols_by_pkg[i] = @[]
+
+          if not jsondoc_symbols_by_pkg[i].contains symbol:
+            jsondoc_symbols_by_pkg[i].add(symbol)
 
       except:
         log_debug "failed to read and parse " & json_fn & " : " & getCurrentExceptionMsg()
@@ -859,7 +872,8 @@ proc fetch_and_build_pkg_if_needed(pname: string, force_rebuild=false) {.async.}
       pkgs_doc_files[pname].build_status,
       pkgs_doc_files[pname].doc_build_status
     )
-    save_pkg_metadata(pkgs_doc_files[pname], package_parent_dir(pname) & "/nimpkgdir.json")
+    let fn = package_parent_dir(pname) & "/nimpkgdir.json"
+    save_pkg_metadata(pkgs_doc_files[pname], fn)
     return  # install failed
 
   stats.incr("build_succeded")
@@ -1437,18 +1451,35 @@ routes:
     ## Serve robots.txt to throttle bots
     resp "User-agent: *\nCrawl-delay: 300\n"
 
+  include "templates/jsondoc_symbols.tmpl"  # generate_jsondoc_symbols_page
   get "/searchitem":
-    ## Search for jsondoc item
+    ## Search for jsondoc symbol across all packages
     log_req request
     stats.incr("views")
     let query = @"query"
     let jdi =
-      if jsondoc_items.hasKey(query):
-        jsondoc_items[query]
+      if jsondoc_symbols.hasKey(query):
+        jsondoc_symbols[query]
       else:
         @[]
-    let body = generate_jsondoc_items_page(jdi)
+    let body = generate_jsondoc_symbols_page(jdi)
     resp base_page(request, body)
+
+  include "templates/jsondoc_pkg_symbols.tmpl"  # generate_jsondoc_pkg_symbols_page
+  post "/searchitem_pkg":
+    ## Search for jsondoc symbol in one package
+    log_req request
+    stats.incr("views")
+    let pname = normalize(@"pkg_name").strip()
+    let query = @("query").strip()
+    let url = pkgs[pname]["url"].str.strip(chars={'/'}, leading=false)
+    let matches =
+      try:
+        jsondoc_symbols_by_pkg[(pname, query)]
+      except KeyError:
+        @[]
+    let body = generate_jsondoc_pkg_symbols_page(matches, url)
+    resp body
 
 
 proc cleanupWhitespace(s: string): string =

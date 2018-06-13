@@ -48,6 +48,7 @@
     <div class="tile tile-centered divided">
       <div class="tile-content">
         <div class="tile-title">
+          Author:
           <figure class="avatar avatar-xs" data-initial="" style="background-color: #5764c6;">
           </figure>
           <a href="https://github.com/${pkg["github_owner"].str}">
@@ -171,6 +172,31 @@
           reload_rebuildbtn();
         </script>
 
+      </div>
+    </div>
+
+    <div class="tile tile-centered divided">
+      <div class="tile-content">
+        <div class="tile-title">
+          <form action="/searchitem_pkg" method="GET" role="search" class="input-group" id="searchitem">
+            <input class="form-input" name="query" placeholder="Search symbol in ${pname}" type="search" value="" minlength="1" autofocus required >
+            <input class="form-input" name="pkg_name" type="hidden" value="${pname}">
+            <button type="submit" class="btn btn-primary input-group-btn">
+              <i class="fa fa-search"></i>Search
+            </button>
+          </form>
+        </div>
+      <div class="tile-content">
+        <div id="searchitem_result">
+        </div>
+      </div>
+        <script>
+          $$("#searchitem").submit(function(event) {
+            var data = $$("#searchitem :input").serializeArray();
+            $$("#searchitem_result").load("/searchitem_pkg", data);
+            event.preventDefault();
+          });
+        </script>
       </div>
     </div>
 
