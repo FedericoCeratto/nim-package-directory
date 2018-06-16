@@ -40,7 +40,7 @@ import github,
 
 const
   template_path = "./templates"
-  build_timeout_seconds = 120
+  build_timeout_seconds = 60 * 4
   github_readme_tpl = "https://api.github.com/repos/$#/readme"
   github_tags_tpl = "https://api.github.com/repos/$#/tags"
   github_latest_version_tpl = "https://api.github.com/repos/$#/releases/latest"
