@@ -13,7 +13,7 @@ import httpclient
 import json
 import strutils, unittest
 
-from os import existsEnv
+from os import existsEnv, sleep
 
 if not existsEnv("NIMPKGDIR_ENABLE_FUNCTEST"):
   echo "Set NIMPKGDIR_ENABLE_FUNCTEST to enable functional tests"
@@ -44,7 +44,11 @@ suite "functional tests":
     page = get(url & "/search?query=framework")
     check page.contains "Chromium Embedded Framework"
 
-  test "show jester pkg":
+  test "build jester pkg":
+
+    test "JSON status: unknown":
+      check "unknown" in get(url & "/api/v1/status/jester")
+
     # users look at pkg metadata
     #   look at pkg github readme
     var page = get(url & "/pkg/jester")
@@ -54,6 +58,17 @@ suite "functional tests":
     # Check string from the GH readme
     check page.contains "Routes will be executed in the order"
     check page.contains "0.2.0"
+
+    for cnt in 1..100:
+      if "done" in httpclient.getContent(url & "/api/v1/status/jester"):
+        break
+      sleep 250
+      if cnt == 100: quit(1)
+
+    test "JSON status: done":
+      let status = get(url & "/api/v1/status/jester").parseJSON()
+      check status["status"].getStr() == "done"
+      check status["build_time"].getStr().startsWith("201")
 
   test "fetch packages.json":
     var page = get url & "/packages.json"

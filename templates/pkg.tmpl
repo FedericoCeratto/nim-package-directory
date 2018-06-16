@@ -125,6 +125,7 @@
             <img class="slickbadge" id="docstatusbadge">
           </a>
         </div>
+        <p id="last_build_time"></p>
         <button class="btn btn-sm" id="rebuildbtn">rebuild now</button>
       </div>
     </div>
@@ -155,11 +156,12 @@
             $$("#docstatusbadge").attr("src", "/ci/badges/${pname}/nimdevel/docstatus.svg");
           }
           function reload_rebuildbtn() {
-            $$.getJSON( "/ci/status/${pname}", function(resp) {
+            $$.getJSON( "/api/v1/status/${pname}", function(resp) {
               if (resp.status == "building") {
                 $$("#rebuildbtn").addClass("loading");
               } else {
                 $$("#rebuildbtn").removeClass("loading");
+                $$("#last_build_time").html("Last build time: " + resp.build_time);
                 reload_badges();
               }
             });

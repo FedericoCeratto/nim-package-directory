@@ -833,41 +833,31 @@ proc fetch_and_build_pkg_if_needed(pname: string, force_rebuild=false) {.async.}
   if pkgs_doc_files.hasKey(pname):
     # A build has been already done or is currently running.
 
-    # Wait on any existing pkg building task to finish
-    let t0 = epochTime()
-    var sleep_time_ms = 50
-    while pkgs_doc_files[pname].building == true:
-      let elapsed = epochTime() - t0
-      if elapsed > build_timeout_seconds:
-        log_debug "timed out!"
-        stats.incr("build_timed_out")
-        break
-      log_debug "waiting already running build for $# $#s..." % [pname, $int(elapsed)]
-      await sleepAsync sleep_time_ms
-      if sleep_time_ms < 1000:
-        sleep_time_ms *= 2
+    if pkgs_doc_files[pname].building == true:
+      # Build already running
+      return
 
     if not force_rebuild and pkgs_doc_files[pname].expire_time > getTime():
       # No need to rebuild yet
       return
 
   else:
-    # The package has never been built before: start first build
+    # The package has never been built before: create PkgDocMetadata
     let pm = PkgDocMetadata(
-      build_time: getTime(),
-      expire_time: getTime() + build_expiry_time,
       fnames: @[],
       idx_fnames: @[],
-      building: true,
-      build_status: BuildStatus.Running,
-      doc_build_status: BuildStatus.Running,
     )
     pkgs_doc_files[pname] = pm
+
+  pkgs_doc_files[pname].building = true # lock
+  pkgs_doc_files[pname].build_time = getTime()
+  pkgs_doc_files[pname].expire_time = getTime() + build_expiry_time
+  pkgs_doc_files[pname].build_status = BuildStatus.Running
+  pkgs_doc_files[pname].doc_build_status = BuildStatus.Running
 
   # Fetch or update pkg
   let url = pkgs[pname]["url"].str
 
-  pkgs_doc_files[pname].building = true # lock
   zmqsock.send("build:start " & pname)
   try:
     let t0 = epochTime()
@@ -929,6 +919,17 @@ proc fetch_and_build_pkg_if_needed(pname: string, force_rebuild=false) {.async.}
     let pm: PkgDocMetadata = load_metadata(fn)
   except:
     log.error("JSON: created broken file: " & fn)
+
+proc wait_build_completion(pname: string) {.async.} =
+  let t0 = epochTime()
+  while pkgs_doc_files[pname].building == true:
+    let elapsed = epochTime() - t0
+    if elapsed > build_timeout_seconds:
+      log_debug "wait timed out!"
+      stats.incr("build_timed_out")
+      break
+    log_debug "waiting already running build for $# $#s..." % [pname, $int(elapsed)]
+    await sleepAsync 1000
 
 proc translate_term_colors*(outp: string): string =
   ## Translate terminal colors
@@ -1024,9 +1025,15 @@ routes:
     resp base_page(request, body)
 
   get "/build_history.html":
+    ## build history and status
     include "templates/build_history.tmpl"
     log_req request
-    resp base_page(request, generate_build_history_page(build_history))
+    var current_builds: seq[string] = @[]
+    for pname, pm in pkgs_doc_files.pairs():
+      if pm.building:
+        current_builds.add pname
+
+    resp base_page(request, generate_build_history_page(build_history, current_builds))
 
   get "/pkg/@pkg_name/?":
     log_req request
@@ -1036,10 +1043,10 @@ routes:
       resp base_page(request, "Package not found")
 
     most_queried_packages.inc pname
-    let
-      pkg = pkgs[pname]
-      url = pkg["url"].str
+    asyncCheck fetch_and_build_pkg_if_needed(pname)
 
+    let pkg = pkgs[pname]
+    let url = pkg["url"].str
     if url.startswith("https://github.com/") or url.startswith("http://github.com/"):
       if not pkg.has_key("github_last_update_time") or pkg["github_last_update_time"].num +
           github_caching_time < epochTime().int:
@@ -1137,7 +1144,8 @@ routes:
     most_queried_packages.inc pname
 
     # Check out pkg and build docs. Modifies pkgs_doc_files
-    await fetch_and_build_pkg_if_needed(pname)
+    asyncCheck fetch_and_build_pkg_if_needed(pname)
+    await wait_build_completion(pname)
 
     # Show files summary
     resp base_page(request,
@@ -1153,7 +1161,8 @@ routes:
       resp base_page(request, "<p>Package not found</p>")
 
     # Check out pkg and build docs. Modifies pkgs_doc_files
-    #await fetch_and_build_pkg_if_needed(pname)
+    await fetch_and_build_pkg_if_needed(pname)
+    await wait_build_completion(pname)
 
     let pkg_root_dir =
       try:
@@ -1186,7 +1195,8 @@ routes:
     most_queried_packages.inc pname
 
     # Check out pkg and build docs. Modifies pkgs_doc_files
-    await fetch_and_build_pkg_if_needed(pname)
+    asyncCheck fetch_and_build_pkg_if_needed(pname)
+    await wait_build_completion(pname)
 
     let pkg_root_dir =
       try:
@@ -1302,12 +1312,12 @@ routes:
       resp base_page(request, "Package not found")
 
     most_queried_packages.inc pname
-    await fetch_and_build_pkg_if_needed(pname)
+    asyncCheck fetch_and_build_pkg_if_needed(pname)
     try:
       let md = pkgs_doc_files[pname]
       let version =
         if md.version == nil:
-          "?"
+          "..."
         else:
           md.version.strip(chars={'\0'})
       let badge = version_badge_tpl % [version, version]
@@ -1330,18 +1340,17 @@ routes:
 
     # This might start a build here and populate pkgs_doc_files[pname]
     # or fail before setting pkgs_doc_files or not run at all
-    await fetch_and_build_pkg_if_needed(pname)
-    # The Running badge should only appear if there are bugs
-    # in fetch_and_build_pkg_if_needed
+    asyncCheck fetch_and_build_pkg_if_needed(pname)
 
-    if not pkgs_doc_files.hasKey(pname):
-        log_info "missing pname, this is a bug"
-        halt Http400
-
-    let md = pkgs_doc_files[pname]
+    let build_status =
+      try:
+        pkgs_doc_files[pname].build_status
+      except KeyError:
+        log.error "status badge bug"
+        BuildStatus.Failed
 
     let badge =
-      case md.build_status
+      case build_status
       of BuildStatus.OK:
         build_success_badge
       of BuildStatus.Failed:
@@ -1363,18 +1372,17 @@ routes:
 
     most_queried_packages.inc pname
 
-    await fetch_and_build_pkg_if_needed(pname)
+    asyncCheck fetch_and_build_pkg_if_needed(pname)
 
-    if not pkgs_doc_files.hasKey(pname):
-        log_info "missing pname, this is a bug"
-        halt Http400
+    let doc_build_status =
+      try:
+        pkgs_doc_files[pname].doc_build_status
+      except KeyError:
+        log.error "doc build status badge bug"
+        BuildStatus.Running
 
-    let md = pkgs_doc_files[pname]
-
-    # The Running badge should only appear if there the
-    # nimble install failed
     let badge =
-      case md.doc_build_status
+      case doc_build_status
       of BuildStatus.OK:
         doc_success_badge
       of BuildStatus.Failed:
@@ -1395,7 +1403,8 @@ routes:
       resp base_page(request, "Package not found")
 
     most_queried_packages.inc pname
-    await fetch_and_build_pkg_if_needed(pname)
+    asyncCheck fetch_and_build_pkg_if_needed(pname)
+    await wait_build_completion(pname)
     try:
       let outp = pkgs_doc_files[pname].build_output
       let build_output = translate_term_colors(outp)
@@ -1418,7 +1427,8 @@ routes:
       resp base_page(request, "Package not found")
 
     most_queried_packages.inc pname
-    await fetch_and_build_pkg_if_needed(pname)
+    asyncCheck fetch_and_build_pkg_if_needed(pname)
+    await wait_build_completion(pname)
     try:
       var doc_build_html = ""
       for o in pkgs_doc_files[pname].doc_build_output:
@@ -1441,7 +1451,7 @@ routes:
     except KeyError:
       halt Http400
 
-  get "/ci/status/@pkg_name":
+  get "/api/v1/status/@pkg_name":
     ## Package build status in a simple JSON
     log_req request
     let pname = normalize(@"pkg_name")
@@ -1453,7 +1463,14 @@ routes:
           "done"
       else:
         "unknown"
-    let s = %* {"status": status}
+
+    let build_time =
+      try:
+        $pkgs_doc_files[pname].build_time.utc:
+      except KeyError:
+        ""
+
+    let s = %* {"status": status, "build_time": build_time}
     resp $s
 
   post "/ci/rebuild/@pkg_name":
