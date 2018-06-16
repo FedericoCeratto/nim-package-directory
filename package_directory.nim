@@ -407,6 +407,21 @@ proc `+`(t1, t2: Time): Time {.borrow.}
 
 type RunOutput = tuple[exit_code: int, elapsed: float, output: string]
 
+proc strip_html*(html: string): string =
+  # Assumes that any < > that is not part of HTML tags has been escaped
+  # Everything that matches <.*> is removed, including invalid tags
+  result = newStringOfCap(html.len)
+  var inside_tag = false
+  for c in html:
+    if inside_tag == false:
+      if c == '<':
+        inside_tag = true
+      else:
+        result.add c
+    elif c == '>':
+      inside_tag = false
+
+
 proc run_process(bin_path, desc, work_dir: string,
     timeout: int, log_output: bool,
     args: varargs[string, `$`]): (bool, string) {.discardable.} =
@@ -784,24 +799,27 @@ proc generate_jsondoc(pname: string) {.async.} =
         let j = parseJson(readFile(json_fn))
         for chunk in j:
           let symbol_name = chunk["name"].getStr()
+          let description = chunk{"description"}.getStr().strip_html()
           let symbol = PkgSymbol(
             itype:chunk["type"].getStr(),
-            desc:chunk{"description"}.getStr(),
+            desc:description,
             code:chunk["code"].getStr(),
             filepath:fname[pkg_root_dir.len..^1],
             line:chunk["line"].getInt(),
             col:chunk["col"].getInt(),
           )
-          if not jsondoc_symbols.hasKey(symbol_name):
-            jsondoc_symbols[symbol_name] = @[]
-          jsondoc_symbols[symbol_name].add(symbol)
+          try:
+            if not jsondoc_symbols[symbol_name].contains symbol:
+              jsondoc_symbols[symbol_name].add(symbol)
+          except KeyError:
+            jsondoc_symbols[symbol_name] = @[symbol]
 
           let i:PkgSymbolsIndexer = (pname, symbol_name)
-          if not jsondoc_symbols_by_pkg.hasKey(i):
-            jsondoc_symbols_by_pkg[i] = @[]
-
-          if not jsondoc_symbols_by_pkg[i].contains symbol:
-            jsondoc_symbols_by_pkg[i].add(symbol)
+          try:
+            if not jsondoc_symbols_by_pkg[i].contains symbol:
+              jsondoc_symbols_by_pkg[i].add(symbol)
+          except KeyError:
+            jsondoc_symbols_by_pkg[i] = @[symbol]
 
       except:
         log_debug "failed to read and parse " & json_fn & " : " & getCurrentExceptionMsg()
@@ -1455,13 +1473,27 @@ routes:
     log_req request
     stats.incr("views")
     let query = @"query"
-    let jdi =
-      if jsondoc_symbols.hasKey(query):
+    let matches =
+      try:
         jsondoc_symbols[query]
-      else:
+      except KeyError:
         @[]
-    let body = generate_jsondoc_symbols_page(jdi)
+    let body = generate_jsondoc_symbols_page(matches)
     resp base_page(request, body)
+
+  template resp*(content: JsonNode): typed =
+    resp($content, contentType="application/json")
+
+  get "/api/v1/search_symbol":
+    ## Search for jsondoc symbol across all packages
+    log_req request
+    stats.incr("views")
+    let matches =
+      try:
+        jsondoc_symbols[@"symbol"]
+      except KeyError:
+        @[]
+    resp %matches
 
   include "templates/jsondoc_pkg_symbols.tmpl"  # generate_jsondoc_pkg_symbols_page
   post "/searchitem_pkg":

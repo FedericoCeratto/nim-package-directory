@@ -103,6 +103,11 @@ suite "functional tests":
       check page.contains "1 entries found"
       # TODO: fix page style and content
 
+    test "global symbol search - API":
+      var page = get url & "/api/v1/search_symbol?symbol=sendHeaders"
+      check page.startsWith("[")
+      check page.endswith("]")
+
     test "package symbol search - normalizeUri":
       # assumes jester has been built
       var page = post url & "/searchitem_pkg?pkg_name=jester&query=normalizeUri"

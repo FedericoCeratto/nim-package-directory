@@ -42,3 +42,9 @@ suite "test pkgs":
     assert b.smallest() == ("C", 1)
     assert toSeq(b.keys()) == @["A", "B", "C"]
     assert toSeq(b.values()) == @[3, 2, 1]
+
+  test "remove HTML":
+    const
+      html = "Sends <tt class=\"docutils literal\"><span class=\"pre\">status</span></tt> and <tt class=\"docutils literal\"><span class=\"pre\">Content-Type: text/html</span></tt>."
+      exp = "Sends status and Content-Type: text/html."
+    check exp == strip_html(html)
