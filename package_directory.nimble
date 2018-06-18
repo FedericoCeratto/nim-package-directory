@@ -9,7 +9,7 @@ bin = @["package_directory"]
 
 # Dependencies
 
-requires "nim >= 0.14.2", "jester", "tempfile", "rss", "sdnotify", "statsd_client", "morelogging", "zmq", "randomfontcolor"
+requires "nim >= 0.14.2", "jester", "tempfile", "rss", "sdnotify", "statsd_client", "morelogging", "zmq"
 
 task builddeb, "Generate deb":
   exec "dpkg-buildpackage -us -uc -b -j4"
