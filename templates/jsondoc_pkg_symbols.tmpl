@@ -1,0 +1,27 @@
+#? stdtmpl | standard
+#proc generate_jsondoc_pkg_symbols_page(symbols: PkgSymbols, url: string): string =
+#  result = ""
+
+<div class="columns">
+<div class="column col-12">
+  <h5>${symbols.len} entries found</h5>
+</div>
+
+#for pname, symbol in symbols:
+  <div class="column col-12">
+    <div class="panel package">
+      <div class="panel-header">
+        <div class=""><code>${symbol.code}</code></div>
+        <div class="">${symbol.desc}</div>
+        <div class="">Type: ${symbol.itype}</div>
+        # if symbol.filepath.len > 0:
+        <div class="">Filename: ${symbol.filepath[1..^1]}</div>
+        # end
+        <a href="${url}/blob/master${symbol.filepath}#L${symbol.line}"
+            class="btn input-group-btn">
+          <i class="fa fa-github"></i>View source
+        </a>
+      </div>
+    </div>
+  </div>
+#end for

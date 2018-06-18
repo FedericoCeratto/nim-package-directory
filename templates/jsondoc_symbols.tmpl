@@ -1,0 +1,30 @@
+#? stdtmpl | standard
+#proc generate_jsondoc_symbols_page(jd_symbols: PkgSymbols): string =
+#  result = ""
+
+<div class="columns">
+<div class="column col-12">
+  <h4>${jd_symbols.len} entries found</h4>
+</div>
+
+#for pname, symbol in jd_symbols:
+  <div class="column col-12">
+    <div class="panel package">
+      <div class="panel-header">
+        <div class=""><code>${symbol.code}</code></div>
+        <div class="">Desc: ${symbol.desc}</div>
+        <div class="">Type: ${symbol.itype}</div>
+        <div class="">File: ${symbol.filepath}</div>
+        <div class="panel-title">Package: <a href="/pkg/${pname}">${pname}</a> </div>
+      </div>
+      <div class="panel-footer">
+        Line: ${symbol.line} Col: ${symbol.col}
+      </div>
+      <a href="https://github.com/FedericoCeratto/nim-libsodium/blob/master${symbol.filepath}#L${symbol.line}"
+          class="btn input-group-btn">
+          <i class="fa fa-github"></i>View on GitHub
+        </a>
+      <button class="btn btn-link">link button</button>
+    </div>
+  </div>
+#end for

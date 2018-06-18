@@ -40,7 +40,7 @@ import github,
 
 const
   template_path = "./templates"
-  build_timeout_seconds = 120
+  build_timeout_seconds = 60 * 4
   github_readme_tpl = "https://api.github.com/repos/$#/readme"
   github_tags_tpl = "https://api.github.com/repos/$#/tags"
   github_latest_version_tpl = "https://api.github.com/repos/$#/releases/latest"
@@ -133,10 +133,10 @@ type
     build_time: Time
     build_status: BuildStatus
     doc_build_status: BuildStatus
-  JsonDocPkgItem = object
+  PkgSymbol = object
     code, desc, itype, filepath: string
     line, col: int
-  JsonDocPkgItems = seq[JsonDocPkgItem]
+  PkgSymbols = seq[PkgSymbol]
 
 # the pkg name is normalized
 var pkgs: Pkgs = newTable[string, Pkg]()
@@ -153,9 +153,14 @@ var packages_by_tag = newTable[string, seq[string]]()
 # initialized/updated by load_packages
 var packages_by_description_word = newTable[string, seq[string]]()
 
-# package access statistics
+# symbol -> seq[PkgSymbol]
 # initialized by scan_pkgs_dir
-var jsondoc_items = newTable[string, JsonDocPkgItems]()
+var jsondoc_symbols = newTable[string, PkgSymbols]()
+
+# pname, symbol -> seq[PkgSymbol]
+# initialized by scan_pkgs_dir
+type PkgSymbolsIndexer = tuple[pname, symbol: string]
+var jsondoc_symbols_by_pkg = newTable[PkgSymbolsIndexer, PkgSymbols]()
 
 # package access statistics
 # volatile
@@ -231,13 +236,15 @@ proc load_metadata(fn: string): PkgDocMetadata =
   load(newFileStream(fn, fmRead), result)
 
 proc scan_pkgs_dir(pkgs_root: string) =
-  ## scan all packages dirs, populate jsondoc_items and pkgs_doc_files
+  ## scan all packages dirs, populate jsondoc_symbols,
+  ## jsondoc_symbols_by_pkg and pkgs_doc_files
   let pattern = pkgs_root / "*" / "nimpkgdir.json"
   # e.g /var/lib/nim_package_directory/cache/*/nimpkgdir.json
   log_info "scanning pattern '" & pattern & "'"
   for x in walkPattern(pattern):
     try:
       let pm: PkgDocMetadata = load_metadata(x)
+      # TODO jsondoc_symbols, jsondoc_symbols_by_pkg
     except:
       # ignore metadata
       log_info "Load error: " & getCurrentExceptionMsg()
@@ -400,6 +407,21 @@ proc `+`(t1, t2: Time): Time {.borrow.}
 
 type RunOutput = tuple[exit_code: int, elapsed: float, output: string]
 
+proc strip_html*(html: string): string =
+  # Assumes that any < > that is not part of HTML tags has been escaped
+  # Everything that matches <.*> is removed, including invalid tags
+  result = newStringOfCap(html.len)
+  var inside_tag = false
+  for c in html:
+    if inside_tag == false:
+      if c == '<':
+        inside_tag = true
+      else:
+        result.add c
+    elif c == '>':
+      inside_tag = false
+
+
 proc run_process(bin_path, desc, work_dir: string,
     timeout: int, log_output: bool,
     args: varargs[string, `$`]): (bool, string) {.discardable.} =
@@ -490,9 +512,7 @@ proc fetch_github_versions(pkg: Pkg, owner_repo_name: string) {.async.} =
     let rtags = await ac.getContent(github_tags_tpl % owner_repo_name)
     let tags = parseJson(rtags)
     for t in tags:
-      var name = t["name"].str
-      if name.startsWith("v"):
-        name = name[1..^0]
+      let name = t["name"].str.strip(trailing=false, chars={'v'})
       if name.len > 0:
         version_names.add newJString name
   except:
@@ -748,9 +768,9 @@ proc build_docs(pname: string) {.async.} =
     if (input_fnames.len == generated_doc_fnames.len): BuildStatus.OK
     else: BuildStatus.Failed
 
-include "templates/jsondoc_items.tmpl"
 proc generate_jsondoc(pname: string) {.async.} =
-  ## Generate jsondoc items
+  ## Generate jsondoc items, add them to the global `jsondoc_symbols`
+  ## and `jsondoc_symbols_by_pkg`
   let pkg_root_dir = locate_pkg_root_dir(pname)
   log_debug "Walking ", pkg_root_dir
 
@@ -778,19 +798,28 @@ proc generate_jsondoc(pname: string) {.async.} =
       try:
         let j = parseJson(readFile(json_fn))
         for chunk in j:
-          let item_name = chunk["name"].getStr()
-          let item = JsonDocPkgItem(
+          let symbol_name = chunk["name"].getStr()
+          let description = chunk{"description"}.getStr().strip_html()
+          let symbol = PkgSymbol(
             itype:chunk["type"].getStr(),
-            desc:chunk{"description"}.getStr(),
+            desc:description,
             code:chunk["code"].getStr(),
             filepath:fname[pkg_root_dir.len..^1],
             line:chunk["line"].getInt(),
             col:chunk["col"].getInt(),
           )
-          if not jsondoc_items.hasKey(item_name):
-            jsondoc_items[item_name] = @[]
-          jsondoc_items[item_name].add(item)
-          log_debug jsondoc_items[item_name]
+          try:
+            if not jsondoc_symbols[symbol_name].contains symbol:
+              jsondoc_symbols[symbol_name].add(symbol)
+          except KeyError:
+            jsondoc_symbols[symbol_name] = @[symbol]
+
+          let i:PkgSymbolsIndexer = (pname, symbol_name)
+          try:
+            if not jsondoc_symbols_by_pkg[i].contains symbol:
+              jsondoc_symbols_by_pkg[i].add(symbol)
+          except KeyError:
+            jsondoc_symbols_by_pkg[i] = @[symbol]
 
       except:
         log_debug "failed to read and parse " & json_fn & " : " & getCurrentExceptionMsg()
@@ -804,41 +833,31 @@ proc fetch_and_build_pkg_if_needed(pname: string, force_rebuild=false) {.async.}
   if pkgs_doc_files.hasKey(pname):
     # A build has been already done or is currently running.
 
-    # Wait on any existing pkg building task to finish
-    let t0 = epochTime()
-    var sleep_time_ms = 50
-    while pkgs_doc_files[pname].building == true:
-      let elapsed = epochTime() - t0
-      if elapsed > build_timeout_seconds:
-        log_debug "timed out!"
-        stats.incr("build_timed_out")
-        break
-      log_debug "waiting already running build for $# $#s..." % [pname, $int(elapsed)]
-      await sleepAsync sleep_time_ms
-      if sleep_time_ms < 1000:
-        sleep_time_ms *= 2
+    if pkgs_doc_files[pname].building == true:
+      # Build already running
+      return
 
     if not force_rebuild and pkgs_doc_files[pname].expire_time > getTime():
       # No need to rebuild yet
       return
 
   else:
-    # The package has never been built before: start first build
+    # The package has never been built before: create PkgDocMetadata
     let pm = PkgDocMetadata(
-      build_time: getTime(),
-      expire_time: getTime() + build_expiry_time,
       fnames: @[],
       idx_fnames: @[],
-      building: true,
-      build_status: BuildStatus.Running,
-      doc_build_status: BuildStatus.Running,
     )
     pkgs_doc_files[pname] = pm
+
+  pkgs_doc_files[pname].building = true # lock
+  pkgs_doc_files[pname].build_time = getTime()
+  pkgs_doc_files[pname].expire_time = getTime() + build_expiry_time
+  pkgs_doc_files[pname].build_status = BuildStatus.Running
+  pkgs_doc_files[pname].doc_build_status = BuildStatus.Running
 
   # Fetch or update pkg
   let url = pkgs[pname]["url"].str
 
-  pkgs_doc_files[pname].building = true # lock
   zmqsock.send("build:start " & pname)
   try:
     let t0 = epochTime()
@@ -859,7 +878,8 @@ proc fetch_and_build_pkg_if_needed(pname: string, force_rebuild=false) {.async.}
       pkgs_doc_files[pname].build_status,
       pkgs_doc_files[pname].doc_build_status
     )
-    save_pkg_metadata(pkgs_doc_files[pname], package_parent_dir(pname) & "/nimpkgdir.json")
+    let fn = package_parent_dir(pname) & "/nimpkgdir.json"
+    save_pkg_metadata(pkgs_doc_files[pname], fn)
     return  # install failed
 
   stats.incr("build_succeded")
@@ -899,6 +919,17 @@ proc fetch_and_build_pkg_if_needed(pname: string, force_rebuild=false) {.async.}
     let pm: PkgDocMetadata = load_metadata(fn)
   except:
     log.error("JSON: created broken file: " & fn)
+
+proc wait_build_completion(pname: string) {.async.} =
+  let t0 = epochTime()
+  while pkgs_doc_files[pname].building == true:
+    let elapsed = epochTime() - t0
+    if elapsed > build_timeout_seconds:
+      log_debug "wait timed out!"
+      stats.incr("build_timed_out")
+      break
+    log_debug "waiting already running build for $# $#s..." % [pname, $int(elapsed)]
+    await sleepAsync 1000
 
 proc translate_term_colors*(outp: string): string =
   ## Translate terminal colors
@@ -994,9 +1025,15 @@ routes:
     resp base_page(request, body)
 
   get "/build_history.html":
+    ## build history and status
     include "templates/build_history.tmpl"
     log_req request
-    resp base_page(request, generate_build_history_page(build_history))
+    var current_builds: seq[string] = @[]
+    for pname, pm in pkgs_doc_files.pairs():
+      if pm.building:
+        current_builds.add pname
+
+    resp base_page(request, generate_build_history_page(build_history, current_builds))
 
   get "/pkg/@pkg_name/?":
     log_req request
@@ -1006,10 +1043,10 @@ routes:
       resp base_page(request, "Package not found")
 
     most_queried_packages.inc pname
-    let
-      pkg = pkgs[pname]
-      url = pkg["url"].str
+    asyncCheck fetch_and_build_pkg_if_needed(pname)
 
+    let pkg = pkgs[pname]
+    let url = pkg["url"].str
     if url.startswith("https://github.com/") or url.startswith("http://github.com/"):
       if not pkg.has_key("github_last_update_time") or pkg["github_last_update_time"].num +
           github_caching_time < epochTime().int:
@@ -1107,7 +1144,8 @@ routes:
     most_queried_packages.inc pname
 
     # Check out pkg and build docs. Modifies pkgs_doc_files
-    await fetch_and_build_pkg_if_needed(pname)
+    asyncCheck fetch_and_build_pkg_if_needed(pname)
+    await wait_build_completion(pname)
 
     # Show files summary
     resp base_page(request,
@@ -1123,7 +1161,8 @@ routes:
       resp base_page(request, "<p>Package not found</p>")
 
     # Check out pkg and build docs. Modifies pkgs_doc_files
-    #await fetch_and_build_pkg_if_needed(pname)
+    await fetch_and_build_pkg_if_needed(pname)
+    await wait_build_completion(pname)
 
     let pkg_root_dir =
       try:
@@ -1156,7 +1195,8 @@ routes:
     most_queried_packages.inc pname
 
     # Check out pkg and build docs. Modifies pkgs_doc_files
-    await fetch_and_build_pkg_if_needed(pname)
+    asyncCheck fetch_and_build_pkg_if_needed(pname)
+    await wait_build_completion(pname)
 
     let pkg_root_dir =
       try:
@@ -1272,12 +1312,12 @@ routes:
       resp base_page(request, "Package not found")
 
     most_queried_packages.inc pname
-    await fetch_and_build_pkg_if_needed(pname)
+    asyncCheck fetch_and_build_pkg_if_needed(pname)
     try:
       let md = pkgs_doc_files[pname]
       let version =
         if md.version == nil:
-          "?"
+          "..."
         else:
           md.version.strip(chars={'\0'})
       let badge = version_badge_tpl % [version, version]
@@ -1300,18 +1340,17 @@ routes:
 
     # This might start a build here and populate pkgs_doc_files[pname]
     # or fail before setting pkgs_doc_files or not run at all
-    await fetch_and_build_pkg_if_needed(pname)
-    # The Running badge should only appear if there are bugs
-    # in fetch_and_build_pkg_if_needed
+    asyncCheck fetch_and_build_pkg_if_needed(pname)
 
-    if not pkgs_doc_files.hasKey(pname):
-        log_info "missing pname, this is a bug"
-        halt Http400
-
-    let md = pkgs_doc_files[pname]
+    let build_status =
+      try:
+        pkgs_doc_files[pname].build_status
+      except KeyError:
+        log.error "status badge bug"
+        BuildStatus.Failed
 
     let badge =
-      case md.build_status
+      case build_status
       of BuildStatus.OK:
         build_success_badge
       of BuildStatus.Failed:
@@ -1333,18 +1372,17 @@ routes:
 
     most_queried_packages.inc pname
 
-    await fetch_and_build_pkg_if_needed(pname)
+    asyncCheck fetch_and_build_pkg_if_needed(pname)
 
-    if not pkgs_doc_files.hasKey(pname):
-        log_info "missing pname, this is a bug"
-        halt Http400
+    let doc_build_status =
+      try:
+        pkgs_doc_files[pname].doc_build_status
+      except KeyError:
+        log.error "doc build status badge bug"
+        BuildStatus.Running
 
-    let md = pkgs_doc_files[pname]
-
-    # The Running badge should only appear if there the
-    # nimble install failed
     let badge =
-      case md.doc_build_status
+      case doc_build_status
       of BuildStatus.OK:
         doc_success_badge
       of BuildStatus.Failed:
@@ -1365,7 +1403,8 @@ routes:
       resp base_page(request, "Package not found")
 
     most_queried_packages.inc pname
-    await fetch_and_build_pkg_if_needed(pname)
+    asyncCheck fetch_and_build_pkg_if_needed(pname)
+    await wait_build_completion(pname)
     try:
       let outp = pkgs_doc_files[pname].build_output
       let build_output = translate_term_colors(outp)
@@ -1388,7 +1427,8 @@ routes:
       resp base_page(request, "Package not found")
 
     most_queried_packages.inc pname
-    await fetch_and_build_pkg_if_needed(pname)
+    asyncCheck fetch_and_build_pkg_if_needed(pname)
+    await wait_build_completion(pname)
     try:
       var doc_build_html = ""
       for o in pkgs_doc_files[pname].doc_build_output:
@@ -1411,7 +1451,7 @@ routes:
     except KeyError:
       halt Http400
 
-  get "/ci/status/@pkg_name":
+  get "/api/v1/status/@pkg_name":
     ## Package build status in a simple JSON
     log_req request
     let pname = normalize(@"pkg_name")
@@ -1423,7 +1463,14 @@ routes:
           "done"
       else:
         "unknown"
-    let s = %* {"status": status}
+
+    let build_time =
+      try:
+        $pkgs_doc_files[pname].build_time.utc:
+      except KeyError:
+        ""
+
+    let s = %* {"status": status, "build_time": build_time}
     resp $s
 
   post "/ci/rebuild/@pkg_name":
@@ -1437,18 +1484,49 @@ routes:
     ## Serve robots.txt to throttle bots
     resp "User-agent: *\nCrawl-delay: 300\n"
 
+  include "templates/jsondoc_symbols.tmpl"  # generate_jsondoc_symbols_page
   get "/searchitem":
-    ## Search for jsondoc item
+    ## Search for jsondoc symbol across all packages
     log_req request
     stats.incr("views")
     let query = @"query"
-    let jdi =
-      if jsondoc_items.hasKey(query):
-        jsondoc_items[query]
-      else:
+    let matches =
+      try:
+        jsondoc_symbols[query]
+      except KeyError:
         @[]
-    let body = generate_jsondoc_items_page(jdi)
+    let body = generate_jsondoc_symbols_page(matches)
     resp base_page(request, body)
+
+  template resp*(content: JsonNode): typed =
+    resp($content, contentType="application/json")
+
+  get "/api/v1/search_symbol":
+    ## Search for jsondoc symbol across all packages
+    log_req request
+    stats.incr("views")
+    let matches =
+      try:
+        jsondoc_symbols[@"symbol"]
+      except KeyError:
+        @[]
+    resp %matches
+
+  include "templates/jsondoc_pkg_symbols.tmpl"  # generate_jsondoc_pkg_symbols_page
+  post "/searchitem_pkg":
+    ## Search for jsondoc symbol in one package
+    log_req request
+    stats.incr("views")
+    let pname = normalize(@"pkg_name").strip()
+    let query = @("query").strip()
+    let url = pkgs[pname]["url"].str.strip(chars={'/'}, leading=false)
+    let matches =
+      try:
+        jsondoc_symbols_by_pkg[(pname, query)]
+      except KeyError:
+        @[]
+    let body = generate_jsondoc_pkg_symbols_page(matches, url)
+    resp body
 
 
 proc cleanupWhitespace(s: string): string =

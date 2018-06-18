@@ -48,11 +48,7 @@
     <div class="tile tile-centered divided">
       <div class="tile-content">
         <div class="tile-title">
-          <picture>
-            <!-- if Mobile 25px PNG else 99px PNG -->
-            <source srcset="https://github.com/${pkg["github_owner"].str}.png?size=99" type="image/png" media="(min-width: 767px)">
-            <img class="avatar avatar-xl" src="https://github.com/${pkg["github_owner"].str}.png?size=25" alt="${pkg["github_owner"].str}'s avatar">
-          </picture>
+          <img class="avatar avatar-s" src="https://github.com/${pkg["github_owner"].str}.png?size=25" alt="${pkg["github_owner"].str}'s avatar">
           <br>
           <a href="https://github.com/${pkg["github_owner"].str}">
             ${pkg["github_owner"].str}
@@ -67,7 +63,7 @@
         #if pkg["github_versions"].getElems().len > 0:
           Available versions:
         #  for semver in pkg["github_versions"].getElems():
-            <label class="chip"><b>${semver}</b></label>
+            <label class="chip"><b>${semver.str}</b></label>
         #  end
           <br>
         #else:
@@ -128,6 +124,7 @@
             <img class="slickbadge" id="docstatusbadge">
           </a>
         </div>
+        <p id="last_build_time"></p>
         <button class="btn btn-sm" id="rebuildbtn">rebuild now</button>
       </div>
     </div>
@@ -158,11 +155,12 @@
             $$("#docstatusbadge").attr("src", "/ci/badges/${pname}/nimdevel/docstatus.svg");
           }
           function reload_rebuildbtn() {
-            $$.getJSON( "/ci/status/${pname}", function(resp) {
+            $$.getJSON( "/api/v1/status/${pname}", function(resp) {
               if (resp.status == "building") {
                 $$("#rebuildbtn").addClass("loading");
               } else {
                 $$("#rebuildbtn").removeClass("loading");
+                $$("#last_build_time").html("Last build time: " + resp.build_time);
                 reload_badges();
               }
             });
@@ -175,6 +173,31 @@
           reload_rebuildbtn();
         </script>
 
+      </div>
+    </div>
+
+    <div class="tile tile-centered divided">
+      <div class="tile-content">
+        <div class="tile-title">
+          <form action="/searchitem_pkg" method="GET" role="search" class="input-group" id="searchitem">
+            <input class="form-input" name="query" placeholder="Search symbol in ${pname}" type="search" value="" minlength="1" autofocus required >
+            <input class="form-input" name="pkg_name" type="hidden" value="${pname}">
+            <button type="submit" class="btn btn-primary input-group-btn">
+              <i class="fa fa-search"></i>Search
+            </button>
+          </form>
+        </div>
+      <div class="tile-content">
+        <div id="searchitem_result">
+        </div>
+      </div>
+        <script>
+          $$("#searchitem").submit(function(event) {
+            var data = $$("#searchitem :input").serializeArray();
+            $$("#searchitem_result").load("/searchitem_pkg", data);
+            event.preventDefault();
+          });
+        </script>
       </div>
     </div>
 
