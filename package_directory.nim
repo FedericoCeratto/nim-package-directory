@@ -985,30 +985,26 @@ routes:
   get "/":
     log_req request
     stats.incr("views")
-    try:
-      var top_pkgs: seq[Pkg] = @[]
-      for pname in top_keys(most_queried_packages, 5):
+    var top_pkgs: seq[Pkg] = @[]
+    for pname in top_keys(most_queried_packages, 5):
+      if pkgs.hasKey(pname):
+        top_pkgs.add pkgs[pname]
+
+    log_debug "pkgs history len: $#" % $cache.pkgs_history.len
+    # List 5 newest packages
+    var new_pkgs: seq[Pkg] = @[]
+    for n in 1..min(cache.pkgs_history.len, 5):
+        let pname = cache.pkgs_history[^n].name.normalize()
         if pkgs.hasKey(pname):
-          top_pkgs.add pkgs[pname]
+          new_pkgs.add pkgs[pname]
+        else:
+          log_debug "$# not found in package list" % pname
 
-      log_debug "pkgs history len: $#" % $cache.pkgs_history.len
-      # List 5 newest packages
-      var new_pkgs: seq[Pkg] = @[]
-      for n in 1..min(cache.pkgs_history.len, 5):
-          let pname = cache.pkgs_history[^n].name.normalize()
-          if pkgs.hasKey(pname):
-            new_pkgs.add pkgs[pname]
-          else:
-            log_debug "$# not found in package list" % pname
+    let github_trending = waitFor github_trending_packages(request, pkgs)
 
-      let github_trending = waitFor github_trending_packages(request, pkgs)
-
-      let home = generate_home_page(top_pkgs, new_pkgs,
-                                    github_trending)
-      resp base_page(request, home)
-    except:
-      log.error getCurrentExceptionMsg()
-      halt Http400
+    let home = generate_home_page(top_pkgs, new_pkgs,
+                                  github_trending)
+    resp base_page(request, home)
 
   get "/search":
     log_req request
