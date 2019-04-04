@@ -543,6 +543,14 @@ proc fetch_github_versions(pkg: Pkg, owner_repo_name: string) {.async.} =
         latest = v.str
     if latest == "0":
       pkg["github_latest_version"] = newJString "none"
+      let dotnimble = "https://raw.githubusercontent.com/" & owner_repo_name & "/master/" & split(owner_repo_name, '/')[1] & ".nimble"
+      let r = await newAsyncHttpClient().get(dotnimble)
+      if r.code == Http200 :
+        let b = await r.body
+        for line in splitLines(b) :
+          if line.startsWith("version") :
+            let ver = split(b, "\"")[1]
+            if isDigit(ver[0]): pkg["github_latest_version"] = newJString ver
       pkg["github_latest_version_url"] = newJString ""
     else:
       pkg["github_latest_version"] = newJString latest.strip
