@@ -54,7 +54,7 @@ const
   nim_bin_path = "/usr/bin/nim"
   nimble_bin_path = "/usr/bin/nimble"
   task_pubsub_port = 5583
-  build_expiry_time = (15 * 60).Time
+  build_expiry_time = initTimeInterval(minutes = 15)
   cache_fn = ".cache.json"
 
   xml_no_cache_headers = {
@@ -224,7 +224,7 @@ proc save_pkg_metadata(j: PkgDocMetadata, fn: string) =
   deepCopy[PkgDocMetadata](k, j)
   let f = newFileStream(fn, fmWrite)
   k.build_output = uniescape(j.build_output)
-  if k.version == nil:
+  if k.version == "":
     k.version = "?"
   k.version = k.version.strip(chars={'\0'})
   f.store(k)
@@ -403,7 +403,7 @@ proc append(build_history: var Deque[BuildHistoryItem], name: string,
   let i: BuildHistoryItem = (name, build_time, build_status, doc_build_status)
   build_history.addFirst(i)
 
-proc `+`(t1, t2: Time): Time {.borrow.}
+#proc `+`(t1, t2: Time): Time {.borrow.}
 
 type RunOutput = tuple[exit_code: int, elapsed: float, output: string]
 
@@ -584,8 +584,9 @@ proc github_trending_packages(request: Request, pkgs: Pkgs): Future[seq[JsonNode
   for p in pkgs_list:
     try:
       # 2017-07-21T12:48:35Z
-      let t = p["pushed_at"].str.parse("yyyy-MM-ddTHH:mm:ss")
-      let d = toFriendlyInterval(t.toTime, getTime(), approx=2)
+      let pa = p["pushed_at"].getStr()
+      let t = parseTime(pa, "yyyy-MM-dd\'T\'HH:mm:ss", utc())
+      let d = toFriendlyInterval(t, getTime(), approx=2)
       p["update_age"] = newJString d
     except:
       p["update_age"] = newJString ""
@@ -976,7 +977,7 @@ settings:
 
 # routes
 
-routes:
+router mainRouter:
 
   get "/about.html":
     include "templates/about.tmpl"
@@ -1312,7 +1313,7 @@ routes:
     try:
       let md = pkgs_doc_files[pname]
       let version =
-        if md.version == nil:
+        if md.version == "":
           "..."
         else:
           md.version.strip(chars={'\0'})
@@ -1737,8 +1738,9 @@ proc main() =
   asyncCheck run_systemd_sdnotify_pinger(sdnotify_ping_time_s)
   asyncCheck run_github_packages_json_polling(github_packages_json_polling_time_s)
 
-  log_info "starting loop"
-  runForever()
+  log_info "starting server"
+  var server = initJester(mainRouter)
+  server.serve()
 
 when isMainModule:
   main()
