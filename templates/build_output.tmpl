@@ -1,13 +1,15 @@
 #? stdtmpl | standard
 #proc generate_build_output_page(pname, build_output: string, build_time, expire_time: Time): string =
 #  result = ""
-	<br/>
-	<style>
-		span.blue { color: #6060ff; }
-		span.red { color: #ff6000; }
-		span.success { color: #60ff60; }
+<div class="build-output container">
+<br/>
+  <style>
+    span.blue { color: #6060ff; }
+    span.red { color: #ff6000; }
+    span.success { color: #60ff60; }
     span#build_output { padding: 1em; }
-	</style>
+  </style>
   <p>Build output from <a href="/pkg/${pname}">${pname}</a></p>
   <p>Built on ${build_time}</p>
   <pre id="build_output">${build_output}</pre>
+</div>

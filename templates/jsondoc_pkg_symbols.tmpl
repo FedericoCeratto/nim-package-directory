@@ -1,16 +1,10 @@
 #? stdtmpl | standard
 #proc generate_jsondoc_pkg_symbols_page(symbols: PkgSymbols, url: string): string =
 #  result = ""
+<div class="jsondoc container">
 
-<div class="columns">
-<div class="column col-12">
   <h5>${symbols.len} entries found</h5>
-</div>
-
 #for pname, symbol in symbols:
-  <div class="column col-12">
-    <div class="panel package">
-      <div class="panel-header">
         <div class=""><code>${symbol.code}</code></div>
         <div class="">${symbol.desc}</div>
         <div class="">Type: ${symbol.itype}</div>
@@ -19,9 +13,8 @@
         # end
         <a href="${url}/blob/master${symbol.filepath}#L${symbol.line}"
             class="btn input-group-btn">
-          <i class="fa fa-github"></i>View source
+          <i class="fab fa-github"></i>View source
         </a>
-      </div>
-    </div>
-  </div>
 #end for
+</div>
+

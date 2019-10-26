@@ -4,79 +4,46 @@
 
 # let pname = pkg["name"].str
 
-<div class="columns">
-  <div class="column col-9">
-    <h3>${pname}</h3>
-    #for tag in pkg["tags"]:
-      <label class="chip">
-        <a href="/search?query=$tag.str">
-        $tag.str
-        </a>
-      </label>
-    #end for
-    <p>${pkg["description"].str}</p>
-    #if pkg.has_key("github_readme"):
-    <div class="card" id="github-readme">
-      <div class="card-header">
-        <h4 class="card-title">Readme</h4>
-      </div>
-      <div class="card-body">
-        ${pkg["github_readme"].str}
-      </div>
-    </div>
-    #end
-  </div>
+    
+<div class="pkg-info">
+  <div class="container medium">
 
-  <div class="column col-3">
-    <div class="tile tile-centered" id="require-tile">
-      <div class="tile-icon">
-        <i class="fa fa-download fa-3x"></i>
-      </div>
-      <div class="tile-content">
-        <div class="tile-title">
-          <tt>
-            <input id="cmd" onClick="this.select();" value="nimble install ${pname}" readonly />
-            <a title="Copy" onClick="document.querySelector('#cmd').select();document.execCommand('copy');"><i class="fa fa-copy"></i></a>
-          </tt>
-        </div>
-        <div class="tile-subtitle">
-          Need help? Read <a href="https://github.com/nim-lang/nimble#creating-packages">Nimble</a>
-        </div>
-      </div>
-    </div>
+
+
+    <h3 class="pkg-title"> ${pname} </h3>
+    <p class="tags">
+    #for tag in pkg["tags"]:
+        
+        <a href="/search?query=$tag.str"><span class="tag"> $tag.str</span></a>
+        
+    #end for
+    </p>
+    <p class="pkg-desc">${pkg["description"].str}</p>
     #if pkg.has_key("github_owner"):
-    <div class="tile tile-centered divided">
-      <div class="tile-content">
-        <div class="tile-title">
-          Author:
-          <figure class="avatar avatar-xs" data-initial="" style="background-color: #5764c6;">
-          </figure>
-          <a href="https://github.com/${pkg["github_owner"].str}">
-            ${pkg["github_owner"].str}
-          </a>
-        </div>
-      </div>
-    </div>
+          <p class="pkg-author">Author:  <a href="https://github.com/${pkg["github_owner"].str}">${pkg["github_owner"].str}</a></p>
     #end
+
+    <a title="Copy" onclick="document.querySelector('#cmd').select();document.execCommand('copy');" alt="Copy on clipboard">
+        <i class="fa fa-copy"></i></a> <input id="cmd" onclick="this.select();" value="nimble install ${pname} " readonly="">
+        <p><small>Need help? Read <a href="https://github.com/nim-lang/nimble#creating-packages">Nimble</a></small></p>
+      <hr>   
+    
+    
+
+    <p>
     #if pkg.has_key("github_versions"):
-    <div class="tile tile-centered divided">
-      <div class="tile-content">
         #if pkg["github_versions"].getElems().len > 0:
           Available versions:
         #  for semver in pkg["github_versions"].getElems():
-            <label class="chip"><b>${semver.str}</b></label>
+            <span class="tag">${semver.str}</span>
         #  end
-          <br>
+
         #else:
           No tagged versions available
         #end
-      </div>
-    </div>
     #end
-    <div class="tile tile-centered divided">
-      <div class="tile-content">
-        <div class="tile-title">
-          License:
+    </p>
+    <p>License:
     #     let licns = pkg["license"].str.toLowerAscii.strip
     #     if licns == "mit":
             <a href="https://opensource.org/licenses/MIT">MIT</a>
@@ -109,12 +76,12 @@
     #     else:
             ${pkg["license"].str}
     #     end
-        </div>
-      </div>
-    </div>
-    <div class="tile tile-centered divided">
-      <div class="tile-content">
-        <div>
+    </p>
+    
+
+
+
+          <p>
           <a href="/ci/badges/${pname}/nimdevel/output.html">
             <img class="slickbadge" id="versionbadge">
           </a>
@@ -124,28 +91,28 @@
           <a href="/ci/badges/${pname}/nimdevel/doc_build_output.html">
             <img class="slickbadge" id="docstatusbadge">
           </a>
-        </div>
-        <p id="last_build_time"></p>
-        <button class="btn btn-sm" id="rebuildbtn">rebuild now</button>
-      </div>
-    </div>
+          </p> 
+        <button class="pkg-btn" id="rebuildbtn">Rebuild now</button>
+        
+        
+        
+     
 
-    <div class="tile tile-centered divided">
-      <div class="tile-content">
+    
         #if pkg.has_key("web"):
-          <a href="${pkg["web"].str}" class="btn input-group-btn">
-            <i class="fa fa-globe"></i> Project website
+          <a href="${pkg["web"].str}">
+          <button class="pkg-btn">Project website</button>
           </a>
         #end
         #if pkg.has_key("doc"):
-          <a href="${pkg["doc"].str}" class="btn input-group-btn">
-            <i class="fa fa-book"></i> Docs
+          <a href="${pkg["doc"].str}">
+          <button class="pkg-btn">Docs</button>
           </a>
         #end if
         #let url = pkg["url"].str
         #if url.startswith("https://github.com/") or url.startswith("http://github.com/") or url.startswith("git"):
-          <a class="btn input-group-btn" href="/docs/${pname}">
-            <i class="fa fa-book"></i> Hosted docs
+          <a href="/docs/${pname}">
+          <button class="pkg-btn">Hosted docs</button>
           </a>
         #end if
 
@@ -174,24 +141,29 @@
           reload_rebuildbtn();
         </script>
 
-      </div>
-    </div>
 
-    <div class="tile tile-centered divided">
-      <div class="tile-content">
-        <div class="tile-title">
+
+          <br>
           <form action="/searchitem_pkg" method="GET" role="search" class="input-group" id="searchitem">
-            <input class="form-input" name="query" placeholder="Search symbol in ${pname}" type="search" value="" minlength="1" autofocus required >
+            <input id="search-pkg" class="form-input" name="query" placeholder="Search symbol in ${pname}" type="search" value="" minlength="1" autofocus required >
             <input class="form-input" name="pkg_name" type="hidden" value="${pname}">
-            <button type="submit" class="btn btn-primary input-group-btn">
-              <i class="fa fa-search"></i>Search
-            </button>
+            
           </form>
-        </div>
-      <div class="tile-content">
+        
+     
         <div id="searchitem_result">
         </div>
-      </div>
+   </div>
+  </div>
+  <hr>
+    <div class="readme-section">
+    <div class="container medium">
+    #if pkg.has_key("github_readme"):
+        ${pkg["github_readme"].str}
+    #end
+   
+
+
         <script>
           $$("#searchitem").submit(function(event) {
             var data = $$("#searchitem :input").serializeArray();
@@ -199,12 +171,8 @@
             event.preventDefault();
           });
         </script>
-      </div>
+     </div>
     </div>
-
-  </div>
-</div>
-
 
 <!-- TODO: Dom: IMO this shouldn't be shown -->
 #if pkg.has_key("github_latest_version_time"):
