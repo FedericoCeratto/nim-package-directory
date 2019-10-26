@@ -387,13 +387,16 @@ proc fetch_github_doc_pages(pkg: Pkg, owner, repo_name: string) =
   ## Fetch documentation pages from GitHub
   let url = github_doc_index_tpl % [owner.toLowerAscii, repo_name]
   log_debug "Checking ", url
-  if get(url).status.startsWith("200"):
+  let resp = waitFor newAsyncHttpClient().get(url)
+  if resp.status.startsWith("200"):
     pkg["doc"] = newJString url
+  else:
+    log_debug "Doc not found at ", url
 
 proc fetch_github_packages_json(): string =
   ## Fetch packages.json from GitHub
   log_debug "fetching ", github_packages_json_raw_url
-  getContent(github_packages_json_raw_url)
+  return waitFor newAsyncHttpClient().getContent(github_packages_json_raw_url)
 
 proc append(build_history: var Deque[BuildHistoryItem], name: string,
     build_time: Time, build_status, doc_build_status: BuildStatus) =
@@ -552,13 +555,13 @@ proc fetch_github_versions(pkg: Pkg, owner_repo_name: string) {.async.} =
 
     pkg["github_latest_version_time"] = newJString ""
 
-proc fetch_github_repository_stats(sorting="updated", pagenum=1, limit=200, initial_date: TimeInfo):
+proc fetch_github_repository_stats(sorting="updated", pagenum=1, limit=200, initial_date: DateTime):
     Future[seq[JsonNode]] {.async.} =
   ## Fetch projects on GitHub
   let date = initial_date.format("yyyy-MM-dd")
   let q = github_repository_search_tpl % [date, $limit, sorting, $pagenum]
   log_info "Searching GH repos: '$#'" % q
-  let query_res = await getGHJson(q)
+  let query_res = waitFor getGHJson(q)
   if sorting == "updated":
     return query_res["items"].elems.sortedByIt(it["updated_at"].str).reversed()
   return query_res["items"].elems
