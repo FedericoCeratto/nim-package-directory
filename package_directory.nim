@@ -425,31 +425,31 @@ proc strip_html*(html: string): string =
       inside_tag = false
 
 
-proc run_process(bin_path, desc, work_dir: string,
-    timeout: int, log_output: bool,
-    args: varargs[string, `$`]): (bool, string) {.discardable.} =
-  ## Run command with timeout
-  # TODO: async
-
-  log_debug "running: <" & bin_path & " " & join(args, " ") & "> in " & work_dir
-
-  var p = startProcess(
-    bin_path, args=args,
-    workingDir=work_dir,
-    options={poStdErrToStdOut}
-  )
-  let exit_val = p.waitForExit(timeout=timeout * 1000)
-  let stdout_str = p.outputStream().readAll()
-
-  if log_output or (exit_val != 0):
-    if stdout_str.len > 0:
-      log_debug "Stdout: ---\n$#---" % stdout_str
-
-  if exit_val == 0:
-    log_debug "$# successful" % desc
-  else:
-    log.error "run_process: $# failed, exit value: $#" % [desc, $exit_val]
-  return ((exit_val == 0), stdout_str)
+# proc run_process(bin_path, desc, work_dir: string,
+#     timeout: int, log_output: bool,
+#     args: varargs[string, `$`]): (bool, string) {.discardable.} =
+#   ## Run command with timeout
+#   # TODO: async
+#
+#   log_debug "running: <" & bin_path & " " & join(args, " ") & "> in " & work_dir
+#
+#   var p = startProcess(
+#     bin_path, args=args,
+#     workingDir=work_dir,
+#     options={poStdErrToStdOut}
+#   )
+#   let exit_val = p.waitForExit(timeout=timeout * 1000)
+#   let stdout_str = p.outputStream().readAll()
+#
+#   if log_output or (exit_val != 0):
+#     if stdout_str.len > 0:
+#       log_debug "Stdout: ---\n$#---" % stdout_str
+#
+#   if exit_val == 0:
+#     log_debug "$# successful" % desc
+#   else:
+#     log.error "run_process: $# failed, exit value: $#" % [desc, $exit_val]
+#   return ((exit_val == 0), stdout_str)
 
 proc run_process2(bin_path, desc, work_dir: string,
     timeout: int, log_output: bool,
