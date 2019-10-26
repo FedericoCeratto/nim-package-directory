@@ -23,11 +23,11 @@ const url="http://localhost:5000"
 
 proc get(url: string): string =
   echo "          fetching $#" % url
-  return httpclient.getContent(url)
+  return newHttpClient().getContent(url)
 
 proc post(url: string): string =
   echo "          post to $#" % url
-  return httpclient.postContent(url)
+  return newHttpClient().postContent(url)
 
 
 
@@ -60,7 +60,7 @@ suite "functional tests":
     check page.contains "0.2.0"
 
     for cnt in 1..100:
-      if "done" in httpclient.getContent(url & "/api/v1/status/jester"):
+      if "done" in newHttpClient().getContent(url & "/api/v1/status/jester"):
         break
       sleep 250
       if cnt == 100: quit(1)
