@@ -383,20 +383,20 @@ proc fetch_github_readme*(pkg: Pkg, owner_repo_name: string) {.async.} =
     log_debug getCurrentExceptionMsg()
     pkg["github_readme"] = newJString ""
 
-proc fetch_github_doc_pages(pkg: Pkg, owner, repo_name: string) =
+proc fetch_github_doc_pages(pkg: Pkg, owner, repo_name: string) {.async.} =
   ## Fetch documentation pages from GitHub
   let url = github_doc_index_tpl % [owner.toLowerAscii, repo_name]
   log_debug "Checking ", url
-  let resp = waitFor newAsyncHttpClient().get(url)
+  let resp = await newAsyncHttpClient().get(url)
   if resp.status.startsWith("200"):
     pkg["doc"] = newJString url
   else:
     log_debug "Doc not found at ", url
 
-proc fetch_github_packages_json(): string =
+proc fetch_github_packages_json(): Future[string] {.async.} =
   ## Fetch packages.json from GitHub
   log_debug "fetching ", github_packages_json_raw_url
-  return waitFor newAsyncHttpClient().getContent(github_packages_json_raw_url)
+  return await newAsyncHttpClient().getContent(github_packages_json_raw_url)
 
 proc append(build_history: var Deque[BuildHistoryItem], name: string,
     build_time: Time, build_status, doc_build_status: BuildStatus) =
@@ -561,7 +561,7 @@ proc fetch_github_repository_stats(sorting="updated", pagenum=1, limit=200, init
   let date = initial_date.format("yyyy-MM-dd")
   let q = github_repository_search_tpl % [date, $limit, sorting, $pagenum]
   log_info "Searching GH repos: '$#'" % q
-  let query_res = waitFor getGHJson(q)
+  let query_res = await getGHJson(q)
   if sorting == "updated":
     return query_res["items"].elems.sortedByIt(it["updated_at"].str).reversed()
   return query_res["items"].elems
@@ -1004,7 +1004,7 @@ router mainRouter:
         else:
           log_debug "$# not found in package list" % pname
 
-    let github_trending = waitFor github_trending_packages(request, pkgs)
+    let github_trending = await github_trending_packages(request, pkgs)
 
     let home = generate_home_page(top_pkgs, new_pkgs,
                                   github_trending)
@@ -1058,9 +1058,9 @@ router mainRouter:
         if owner_repo_name.endswith(".git"):
           owner_repo_name = owner_repo_name[0..^5]
         pkg["github_owner"] = newJString owner
-        waitFor pkg.fetch_github_readme(owner_repo_name)
-        waitFor pkg.fetch_github_versions(owner_repo_name)
-        pkg.fetch_github_doc_pages(owner, repo_name)
+        await pkg.fetch_github_readme(owner_repo_name)
+        await pkg.fetch_github_versions(owner_repo_name)
+        await pkg.fetch_github_doc_pages(owner, repo_name)
 
     resp base_page(request, generate_pkg_page(pkg))
 
@@ -1688,7 +1688,7 @@ proc run_github_packages_json_polling(poll_time_s: int) {.async.} =
       await sleepAsync poll_time_s * 1000
     log_debug "Polling GitHub packages.json"
     try:
-      let new_pkg_raw = fetch_github_packages_json()
+      let new_pkg_raw = await fetch_github_packages_json()
       if new_pkg_raw == conf.packages_list_fname.readFile:
         log_debug "No changes"
         stats.gauge("packages_all_known", pkgs.len)
