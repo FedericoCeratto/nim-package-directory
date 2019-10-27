@@ -43,7 +43,7 @@ const
   build_timeout_seconds = 60 * 4
   github_readme_tpl = "https://api.github.com/repos/$#/readme"
   github_tags_tpl = "https://api.github.com/repos/$#/tags"
-  github_latest_version_tpl = "https://api.github.com/repos/$#/releases/latest"
+  github_api_releases_tpl = "https://api.github.com/repos/$#/releases"
   github_doc_index_tpl = "https://$#.github.io/$#/index.html"
   github_repository_search_tpl = "https://api.github.com/search/repositories?q=language:nim+pushed:>$#&per_page=$#sort=$#&page=$#"
   github_caching_time = 600
@@ -77,6 +77,7 @@ let zmqsock = listen("tcp://*:" & $task_pubsub_port, mode=PUB)
 when defined(systemd):
   let log = newJournaldLogger()
 else:
+  # TODO: implement stdout logging
   let log = newAsyncFileLogger()
 
 
@@ -504,6 +505,30 @@ proc run_process2(bin_path, desc, work_dir: string,
   return (exit_code, elapsed, output)
 
 
+proc is_newer(b, a: string): bool =
+  ## Based on Nimble implementation, compares versions a.b.c by simply
+  ## comparing the integers :-/
+  for (ai, bi) in zip(a.split('.'), b.split('.')):
+    let aa = parseInt(ai)
+    let bb = parseInt(bi)
+    if bb > aa:
+      return true
+    elif aa > bb:
+      return false
+
+  return false
+
+proc extract_latest_version(releases: JsonNode): (string, JsonNode) =
+  ## Extracts the release metadata chunk from `releases` matching the latest release
+  var latest_version = "-1.-1.-1"
+  for r in releases:
+    let version = r["tag_name"].str.strip().strip(trailing=false, chars={'v'})
+    if is_newer(version, latest_version):
+      latest_version = version
+      result = (version, r)
+
+  log_debug "Picking latest version from GH tags: ", latest_version
+
 proc fetch_github_versions(pkg: Pkg, owner_repo_name: string) {.async.} =
   ## Fetch versions from GH from releases and tags
   ## Set github_versions, github_latest_version, github_latest_version_url
@@ -528,16 +553,22 @@ proc fetch_github_versions(pkg: Pkg, owner_repo_name: string) {.async.} =
   pkg["github_versions"] = version_names
   log_debug "fetched $# GH versions" % $len(version_names)
 
-  log_debug "fetching GH latest vers ", github_latest_version_tpl % owner_repo_name
+  log_debug "fetching GH releases ", github_api_releases_tpl % owner_repo_name
+  var releases: JsonNode
   try:
-    let latest_version = await getGHJson(github_latest_version_tpl % owner_repo_name)
-    var latest_version_name = latest_version["name"].str.strip
-    if latest_version_name.startsWith("v"):
-      latest_version_name = latest_version_name.strip(trailing=false, chars={'v'})
-    pkg["github_latest_version"] = newJString latest_version_name
-    pkg["github_latest_version_url"] = newJString latest_version["tarball_url"].str
-    pkg["github_latest_version_time"] = newJString latest_version["published_at"].str
+    releases = await getGHJson(github_api_releases_tpl % owner_repo_name)
   except:
+    log_debug getCurrentExceptionMsg()
+    releases = newJArray()
+
+  if releases.len > 0:
+    let (latest_version, meta) = extract_latest_version(releases)
+    doAssert meta != nil
+    pkg["github_latest_version"] = newJString latest_version
+    pkg["github_latest_version_url"] = newJString meta["tarball_url"].str
+    pkg["github_latest_version_time"] = newJString meta["published_at"].str
+
+  else:
     log_debug getCurrentExceptionMsg()
     log_debug "No releases - falling back to tags"
     var latest = "0"
