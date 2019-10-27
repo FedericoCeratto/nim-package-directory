@@ -1,50 +1,51 @@
-#? stdtmpl | standard
+##? stdtmpl | standard
 #proc base_page(req: Request, content: string): string =
 #  result = ""
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <title>Nim package directory</title>
-  <link rel="shortcut icon" href="data:image/x-icon;base64,AAABAAEAEBAAAAEAIABoBAAAFgAAACgAAAAQAAAAIAAAAAEAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AAAAAAUAAAAF////AP///wD///8A////AP///wD///8A////AP///wD///8A////AAAAAAIAAABbAAAAlQAAAKIAAACbAAAAmwAAAKIAAACVAAAAWwAAAAL///8A////AP///wD///8A////AAAAABQAAADAAAAAYwAAAA3///8A////AP///wD///8AAAAADQAAAGMAAADAAAAAFP///wD///8A////AP///wAAAACdAAAAOv///wD///8A////AP///wD///8A////AP///wD///8AAAAAOgAAAJ3///8A////AP///wAAAAAnAAAAcP///wAAAAAoAAAASv///wD///8A////AP///wAAAABKAAAAKP///wAAAABwAAAAJ////wD///8AAAAAgQAAABwAAACIAAAAkAAAAJMAAACtAAAAFQAAABUAAACtAAAAkwAAAJAAAACIAAAAHAAAAIH///8A////AAAAAKQAAACrAAAAaP///wD///8AAAAARQAAANIAAADSAAAARf///wD///8AAAAAaAAAAKsAAACk////AAAAADMAAACcAAAAnQAAABj///8A////AP///wAAAAAYAAAAGP///wD///8A////AAAAABgAAACdAAAAnAAAADMAAAB1AAAAwwAAAP8AAADpAAAAsQAAAE4AAAAb////AP///wAAAAAbAAAATgAAALEAAADpAAAA/wAAAMMAAAB1AAAAtwAAAOkAAAD/AAAA/wAAAP8AAADvAAAA3gAAAN4AAADeAAAA3gAAAO8AAAD/AAAA/wAAAP8AAADpAAAAtwAAAGUAAAA/AAAA3wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAADfAAAAPwAAAGX///8A////AAAAAEgAAADtAAAAvwAAAL0AAADGAAAA7wAAAO8AAADGAAAAvQAAAL8AAADtAAAASP///wD///8A////AP///wD///8AAAAAO////wD///8A////AAAAAIcAAACH////AP///wD///8AAAAAO////wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A//8AAP//AAD4HwAA7/cAAN/7AAD//wAAoYUAAJ55AACf+QAAh+EAAAAAAADAAwAA4AcAAP5/AAD//wAA//8AAA=="/>
-  <meta charset="utf-8">
-  <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link href="//fonts.googleapis.com/css?family=Raleway:400,300,600" rel="stylesheet" type="text/css">
-
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Nimble Package Directory</title>
+  <script src="https://kit.fontawesome.com/a30ba13df5.js" crossorigin="anonymous"></script>
+  <meta name="description" content="">
+  <link rel="icon" type="image/png"  href="images/favicon.png">
+  <link href="https://fonts.googleapis.com/css?family=Play|Roboto|Roboto+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/thebigbaron/lime@v1.0.0/dist/lime/lime.min.css">
   <link rel="stylesheet" href="${req.makeUri("css/style.css", false)}">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/spectre.css/0.4.7/spectre.min.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
   <link rel="search" type="application/opensearchdescription+xml" title="Nimble" href="https://nimble.directory/search.xml">
   <script src="https://code.jquery.com/jquery-3.3.1.min.js" integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8=" crossorigin="anonymous"></script>
 </head>
 <body>
-  <section class="section section-header bg-gray">
-    <section class="grid-header container grid-960">
-      <header class="navbar">
-        <section class="navbar-section">
-          <a href="/" class="navbar-logo">
-            <img id="boxlogo" src="${req.makeUri("img/nimble_logo.svg", false)}"></img>
-          </a>
-          <a href="/" class="navbar-brand mr-10">Nim Package Directory</a>
-        </section>
-        <section class="navbar-center">
-
-        </section>
-        <section class="navbar-section">
-          <a href="/packages.xml" class="btn btn-link">
-            <img src="/img/feed-icon-14x14.png">
-            New packages
-          </a>
-          <a href="/about.html" class="btn btn-link">About</a>
-          <a href="https://nim-lang.org/" class="btn btn-link">Nim-lang</a>
-        </section>
-      </header>
-    </section>
-  </section>
-
-  <div class="container grid-960">
+  <div class="nav">
+    <a href="/" class="logo"><img src="${req.makeUri("img/nimble-logo.png", false)}"></a>
+  <div class="nav-btn">
+    <label for="nav-check">
+      <span></span>
+      <span></span>
+      <span></span>
+    </label>
+  </div>
+  <input type="checkbox" id="nav-check">
+  <div class="nav-links">
+    <a href="/packages.xml"><i class="fas fa-rss style="color:#ed7616"></i> New Packages</a>
+    <a href="/about.html">About</a>
+    <a href="https://nim-lang.org">Nim-lang</a>
+  </div>
+  </div>
+  
+  <div>
     ${content}
   </div>
 
+<footer class="footer">
+  <div class="footer-logo">
+    <img src="img/nimble-logo.png" alt="Nimble Directory">
+  </div>
+  <hr>
+  <p>Copyright &copy; Section.</p>
+</footer>
 </body>
 </html>
+
