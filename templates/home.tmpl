@@ -9,12 +9,10 @@
 #proc generate_home_page(most_queried_packages, new_packages: seq[Pkg], github_trending: seq[JsonNode]): string =
 #  result = ""
 <header class="hero">
-    <img class="logo" src="img/nimble-logo.png" alt="logo">
+    <img class="logo" src="img/nimbledir-logo.png" alt="logo">
     <h1>Nimble</h1>
     <h5 style="text-align: center;">Nimble Package Directory</h5>
     ${generate_search_box()}
-    <p>You don't have Nim in your computer. Install it here.</p>
-    <button class="nim-install"><a href="https://nim-lang.org/install.html">Install Nim</a></button>
 </header>
   <div class="upper">
     <div class="container row">
@@ -34,7 +32,7 @@
       # for i in 0 .. min(8, len(github_trending))-1:
       # let pkg = github_trending[i]
       <div class="four columns" id="pack-show">
-        <h4>${pkg["name"].str}</h4>
+        <h4><a href="/pkg/${pkg["name"].str}/">${pkg["name"].str}</a></h4>
         <span class="stars"><i class="fas fa-star" style="color:#f7e942"></i> ${pkg["stargazers_count"].getNum}</span>
         <p class="show-text"><img src="${pkg["owner"]["avatar_url"].str}""><span class="author"><a href="${pkg["owner"]["html_url"].str}">${pkg["owner"]["login"].str}</a></span>
           </p>
