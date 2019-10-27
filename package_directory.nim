@@ -54,7 +54,7 @@ const
   nim_bin_path = "/usr/bin/nim"
   nimble_bin_path = "/usr/bin/nimble"
   task_pubsub_port = 5583
-  build_expiry_time = (15 * 60).Time
+  build_expiry_time = initTimeInterval(minutes = 15)
   cache_fn = ".cache.json"
 
   xml_no_cache_headers = {
@@ -224,7 +224,7 @@ proc save_pkg_metadata(j: PkgDocMetadata, fn: string) =
   deepCopy[PkgDocMetadata](k, j)
   let f = newFileStream(fn, fmWrite)
   k.build_output = uniescape(j.build_output)
-  if k.version == nil:
+  if k.version == "":
     k.version = "?"
   k.version = k.version.strip(chars={'\0'})
   f.store(k)
@@ -387,13 +387,16 @@ proc fetch_github_doc_pages(pkg: Pkg, owner, repo_name: string) =
   ## Fetch documentation pages from GitHub
   let url = github_doc_index_tpl % [owner.toLowerAscii, repo_name]
   log_debug "Checking ", url
-  if get(url).status.startsWith("200"):
+  let resp = waitFor newAsyncHttpClient().get(url)
+  if resp.status.startsWith("200"):
     pkg["doc"] = newJString url
+  else:
+    log_debug "Doc not found at ", url
 
 proc fetch_github_packages_json(): string =
   ## Fetch packages.json from GitHub
   log_debug "fetching ", github_packages_json_raw_url
-  getContent(github_packages_json_raw_url)
+  return waitFor newAsyncHttpClient().getContent(github_packages_json_raw_url)
 
 proc append(build_history: var Deque[BuildHistoryItem], name: string,
     build_time: Time, build_status, doc_build_status: BuildStatus) =
@@ -403,7 +406,7 @@ proc append(build_history: var Deque[BuildHistoryItem], name: string,
   let i: BuildHistoryItem = (name, build_time, build_status, doc_build_status)
   build_history.addFirst(i)
 
-proc `+`(t1, t2: Time): Time {.borrow.}
+#proc `+`(t1, t2: Time): Time {.borrow.}
 
 type RunOutput = tuple[exit_code: int, elapsed: float, output: string]
 
@@ -560,13 +563,13 @@ proc fetch_github_versions(pkg: Pkg, owner_repo_name: string) {.async.} =
 
     pkg["github_latest_version_time"] = newJString ""
 
-proc fetch_github_repository_stats(sorting="updated", pagenum=1, limit=200, initial_date: TimeInfo):
+proc fetch_github_repository_stats(sorting="updated", pagenum=1, limit=200, initial_date: DateTime):
     Future[seq[JsonNode]] {.async.} =
   ## Fetch projects on GitHub
   let date = initial_date.format("yyyy-MM-dd")
   let q = github_repository_search_tpl % [date, $limit, sorting, $pagenum]
   log_info "Searching GH repos: '$#'" % q
-  let query_res = await getGHJson(q)
+  let query_res = waitFor getGHJson(q)
   if sorting == "updated":
     return query_res["items"].elems.sortedByIt(it["updated_at"].str).reversed()
   return query_res["items"].elems
@@ -592,8 +595,9 @@ proc github_trending_packages(request: Request, pkgs: Pkgs): Future[seq[JsonNode
   for p in pkgs_list:
     try:
       # 2017-07-21T12:48:35Z
-      let t = p["pushed_at"].str.parse("yyyy-MM-ddTHH:mm:ss")
-      let d = toFriendlyInterval(t.toTime, getTime(), approx=2)
+      let pa = p["pushed_at"].getStr()
+      let t = parseTime(pa, "yyyy-MM-dd\'T\'HH:mm:ss", utc())
+      let d = toFriendlyInterval(t, getTime(), approx=2)
       p["update_age"] = newJString d
     except:
       p["update_age"] = newJString ""
@@ -984,7 +988,7 @@ settings:
 
 # routes
 
-routes:
+router mainRouter:
 
   get "/about.html":
     include "templates/about.tmpl"
@@ -993,30 +997,26 @@ routes:
   get "/":
     log_req request
     stats.incr("views")
-    try:
-      var top_pkgs: seq[Pkg] = @[]
-      for pname in top_keys(most_queried_packages, 5):
+    var top_pkgs: seq[Pkg] = @[]
+    for pname in top_keys(most_queried_packages, 5):
+      if pkgs.hasKey(pname):
+        top_pkgs.add pkgs[pname]
+
+    log_debug "pkgs history len: $#" % $cache.pkgs_history.len
+    # List 5 newest packages
+    var new_pkgs: seq[Pkg] = @[]
+    for n in 1..min(cache.pkgs_history.len, 5):
+        let pname = cache.pkgs_history[^n].name.normalize()
         if pkgs.hasKey(pname):
-          top_pkgs.add pkgs[pname]
+          new_pkgs.add pkgs[pname]
+        else:
+          log_debug "$# not found in package list" % pname
 
-      log_debug "pkgs history len: $#" % $cache.pkgs_history.len
-      # List 5 newest packages
-      var new_pkgs: seq[Pkg] = @[]
-      for n in 1..min(cache.pkgs_history.len, 5):
-          let pname = cache.pkgs_history[^n].name.normalize()
-          if pkgs.hasKey(pname):
-            new_pkgs.add pkgs[pname]
-          else:
-            log_debug "$# not found in package list" % pname
+    let github_trending = waitFor github_trending_packages(request, pkgs)
 
-      let github_trending = waitFor github_trending_packages(request, pkgs)
-
-      let home = generate_home_page(top_pkgs, new_pkgs,
-                                    github_trending)
-      resp base_page(request, home)
-    except:
-      log.error getCurrentExceptionMsg()
-      halt Http400
+    let home = generate_home_page(top_pkgs, new_pkgs,
+                                  github_trending)
+    resp base_page(request, home)
 
   get "/search":
     log_req request
@@ -1324,7 +1324,7 @@ routes:
     try:
       let md = pkgs_doc_files[pname]
       let version =
-        if md.version == nil:
+        if md.version == "":
           "..."
         else:
           md.version.strip(chars={'\0'})
@@ -1749,8 +1749,9 @@ proc main() =
   asyncCheck run_systemd_sdnotify_pinger(sdnotify_ping_time_s)
   asyncCheck run_github_packages_json_polling(github_packages_json_polling_time_s)
 
-  log_info "starting loop"
-  runForever()
+  log_info "starting server"
+  var server = initJester(mainRouter)
+  server.serve()
 
 when isMainModule:
   main()

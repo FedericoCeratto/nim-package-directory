@@ -45,9 +45,8 @@ proc toNonLinearInterval(a, b: Time): TimeInterval =
     days_s = hours_s * 24
     months_s = 2592000
     years_s = months_s * 12
-  echo months_s
 
-  var seconds = int(b - a)
+  var seconds = (b - a).seconds.int
   let years = seconds div years_s
   seconds -= years * years_s
   let months = seconds div months_s
@@ -58,11 +57,11 @@ proc toNonLinearInterval(a, b: Time): TimeInterval =
   seconds -= hours * hours_s
   let minutes = seconds div minutes_s
   seconds -= minutes * minutes_s
-  result = initInterval(0, seconds, minutes, hours, days,
+  result = initInterval(seconds, minutes, hours, days,
     months, years)
 
 proc toNonLinearInterval2(a, b: Time): TimeInterval =
-  var remaining = b-a
+  var remaining = (b - a).seconds.int
   let years = remaining div 31536000
   remaining -= years * 31536000
   let months = remaining div 2592000
@@ -73,14 +72,14 @@ proc toNonLinearInterval2(a, b: Time): TimeInterval =
   remaining -= hours * 3600
   let minutes = remaining div 60
   remaining -= minutes * 60
-  result = initInterval(0, remaining.int, minutes.int, hours.int, days.int,
+  result = initInterval(remaining.int, minutes.int, hours.int, days.int,
     months.int, years.int)
 
 proc toNonLinearInterval3(a, b: Time): (TimeInterval, bool) =
   ##
   var i = b.toTimeInterval - a.toTimeInterval
 
-  let in_future = ((b - a) < 0)
+  let in_future = ((b - a).seconds.int < 0)
   if in_future:
     i.seconds *= -1
     i.minutes *= -1
