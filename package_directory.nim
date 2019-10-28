@@ -284,12 +284,21 @@ const
 #     ctx.add_rule(Allow, sc)
 #   ctx.load()
 
+proc fetch_github_packages_json(): Future[string] {.async.} =
+  ## Fetch packages.json from GitHub
+  log_debug "fetching ", github_packages_json_raw_url
+  return await newAsyncHttpClient().getContent(github_packages_json_raw_url)
 
 proc load_packages*() =
   ## Load packages.json
   ## Rebuild packages_by_tag, packages_by_description_word
   log_debug "loading $#" % conf.packages_list_fname
   pkgs.clear()
+  if not conf.packages_list_fname.existsFile:
+    log_info "packages list file not found. First run?"
+    let new_pkg_raw = waitFor fetch_github_packages_json()
+    conf.packages_list_fname.writeFile(new_pkg_raw)
+
   let pkg_list = conf.packages_list_fname.parseFile
   for pdata in pkg_list:
     if not pdata.hasKey("name"):
@@ -392,11 +401,6 @@ proc fetch_github_doc_pages(pkg: Pkg, owner, repo_name: string) {.async.} =
     pkg["doc"] = newJString url
   else:
     log_debug "Doc not found at ", url
-
-proc fetch_github_packages_json(): Future[string] {.async.} =
-  ## Fetch packages.json from GitHub
-  log_debug "fetching ", github_packages_json_raw_url
-  return await newAsyncHttpClient().getContent(github_packages_json_raw_url)
 
 proc append(build_history: var Deque[BuildHistoryItem], name: string,
     build_time: Time, build_status, doc_build_status: BuildStatus) =
