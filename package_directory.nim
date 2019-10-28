@@ -1166,6 +1166,12 @@ router mainRouter:
     stats.incr("views")
     resp conf.packages_list_fname.readFile
 
+  get "/api/v1/package_count":
+    ## Serve the package count
+    log_req request
+    stats.incr("views")
+    resp $pkgs.len
+
   include "templates/doc_files_list.tmpl"
   get "/docs/@pkg_name/?":
     ## Serve hosted docs for a package: summary page

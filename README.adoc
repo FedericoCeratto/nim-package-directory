@@ -14,6 +14,7 @@ Currently running at https://nimble.directory
 - [x] Search symbols from jsondoc
 - [x] Simple API
 - [x] Build history at /build_history.html
+- [x] Package count at /api/v1/package_count
 - [ ] Pkg metadata signing
 
 .Use:
