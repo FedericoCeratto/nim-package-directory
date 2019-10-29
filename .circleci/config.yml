@@ -1,34 +1,35 @@
 version: 2
 jobs:
   build:
-    machine: true
+    docker:
+      - image: debian:stable
     steps:
-      - run: echo 'export PATH=~/.nimble/bin:$PATH' >> $BASH_ENV
-      - checkout
+      - run:
+          name: install dependencies
+          command: |
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update
+            apt-get install -y --no-install-recommends git ssh ca-certificates
+      - run: git clone https://github.com/FedericoCeratto/nim-package-directory.git
+      - run:
+          name: install dependencies
+          command: |
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update
+            #apt-get build-dep -y .
+            apt-get install -y --no-install-recommends build-essential git ssh
       # Reuse cached Nim compiler
       - restore_cache:
           key: compiler-0002
       - run:
           command: |
-            if [ -f ~/.nimble/bin/choosenim ]; then
-              echo "Updating Nim using choosenim"
-              choosenim stable
-            else
-              echo "Installing choosenim and Nim"
-              wget https://raw.githubusercontent.com/dom96/choosenim/master/scripts/choosenim-unix-init.sh
-              sh choosenim-unix-init.sh -y
-            fi
+            apt-get install -y nim
       - save_cache:
           key: compiler-0002
           paths:
             - ~/.nimble
             - ~/.choosenim
       - run:
-          command: |
-            nimble build -y
-            #NIMPKGDIR_ENABLE_FUNCTEST=1 nim c -p=. -r tests/test_functional.nim
-      - store_artifacts:
-          path: test-reports/
-          destination: tr1
-      - store_test_results:
-          path: test-reports/
+          name: run Debian build
+          command: DEB_BUILD_OPTIONS=nocheck dpkg-buildpackage -us -uc -b -j4
+
