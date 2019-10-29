@@ -102,7 +102,7 @@ a:hover {
     transition: all 0.3s ease-in;
     overflow-y: hidden;
     z-index: 2;
-    top: 80px;
+    top: 50px;
     left: 0px;
     cursor: pointer;
   }
