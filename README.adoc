@@ -10,10 +10,12 @@ Currently running at https://nimble.directory
 - [ ] Display BitBucket readme
 - [x] Fetch & install packages, serve badges
 - [x] Build and serve pkg docs
+- [x] New packages RSS feed
+- [x] Search symbols from jsondoc
+- [x] Simple API
+- [x] Build history at /build_history.html
+- [x] Package count at /api/v1/package_count
 - [ ] Pkg metadata signing
-- [x] Pkgs RSS / web feed
-- [ ] Search selectors
-
 
 .Use:
 - For Development, Copy and edit `conf.json.example` to `conf.json`.
