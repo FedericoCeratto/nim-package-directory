@@ -8,63 +8,71 @@
 #
 #proc generate_home_page(most_queried_packages, new_packages: seq[Pkg], github_trending: seq[JsonNode]): string =
 #  result = ""
-<header class="hero">
-    <img class="logo" src="img/nimbledir-logo.png" alt="logo">
-    <h1>Nimble</h1>
-    <h5 style="text-align: center;">Nimble Package Directory</h5>
-    ${generate_search_box()}
-</header>
-  <div class="upper">
-    <div class="container row">
-    <div id="welcome" class="col">
-      <h3> Welcome to Nimble Directory</h3>
+<div class="upper">
+    <div class="container">
+    <div id="welcome" class="twelve column">
+      <h5> Welcome to Nimble Directory</h5>
     <p class="w-message"><span>Developer?</span> Search for packages or jump directly to a package page.
     Nim Package Directory generates and hosts documentation for packages.</p>
     <p class="w-message"><span>Package maintainer?</span> <a href="/about.html">Learn</a> what this service can do for you.</p>
     </div>
     </div>
-  </div>
+</div>
 
-  <div class="container medium" id="showcase">
+<header class="hero">
+    ${generate_search_box()}
+</header>
 
-    <div class="twelve columns" id="package-showcase">
-      <h2><i class="fas fa-poll" style="color:#2ff36b"></i> Trending on GitHub</h2>
+  <div class="container showcase">
+    <div class="col pkg-cat">
+    <h3> Trending Packages</h3>
+
+    <div class="twelve columns">
       # for i in 0 .. min(8, len(github_trending))-1:
       # let pkg = github_trending[i]
-      <div class="four columns" id="pack-show">
-        <h4><a href="/pkg/${pkg["name"].str}/">${pkg["name"].str}</a></h4>
-        <span class="stars"><i class="fas fa-star" style="color:#f7e942"></i> ${pkg["stargazers_count"].getNum}</span>
-        <p class="show-text"><img src="${pkg["owner"]["avatar_url"].str}""><span class="author"><a href="${pkg["owner"]["html_url"].str}">${pkg["owner"]["login"].str}</a></span>
-          </p>
-        <p>${pkg["update_age"].str}</p>
-        <button class="visit-pack-btn"><a href="/pkg/${pkg["name"].str}/"><i class="fas fa-link"> </i> Visit</a></button>
+      <div id="showcase" class="four columns">
+        <h4><a href="/pkg/${pkg["name"].str}/">${pkg["name"].str}</a><span class="stargazer"><i class="fas fa-star" style="color:#f7e942"></i> ${pkg["stargazers_count"].getNum}</span></h4>
+        <p class="show-text"><img src="${pkg["owner"]["avatar_url"].str}""><span class="author"><a href="${pkg["owner"]["html_url"].str}">${pkg["owner"]["login"].str}</a></span></p>
+        <p class="last-commit">${pkg["update_age"].str}</p>
+        <a href="/pkg/${pkg["name"].str}/"><button class="visit-pack-btn"><i class="fas fa-link"> </i> Visit</button></a>
       </div>
       # end
     </div>
 
-    <div class="twelve columns" id="package-showcase">
-      <h2><i class="fas fa-fire" style="color:#f61600"></i> New packages</h2>
+    <div class="col pkg-cat">
+    <h3> Newest Packages</h3>
+
+    <div class="twelve columns">
       # for p in new_packages:
-       <div class="four columns" id="pack-show">
+       <div id="showcase" class="four columns">
         <h4><a href="/pkg/${p["name"].str}/">${p["name"].str}</a></h4>
-          <p>${p["description"].str}</p>
+          <p class="pkg-desc">${p["description"].str}</p>
             # if p.hasKey("web"):
-            <button class="visit-pack-btn"><a href="${p["web"].str}"><i class="fas fa-link"> </i> Visit</a></button>
+            <a href="${p["web"].str}"><button class="visit-pack-btn"><i class="fas fa-link"> </i> Visit</button></a>
             # end
        </div>
       # end
     </div>
+    </div>
 
-    <div class="twelve columns" id="package-showcase">
-      <h2><i class="far fa-question-circle" style="color:#f3b52f"></i> Most queried</h2>
+    <div class="col pkg-cat">
+    <h3> Most queried</h3>
+
+    <div class="twelve columns">
       # for p in most_queried_packages:
-      <div class="four columns" id="pack-show">
+      <div id="showcase" class="four columns">
         <h4><a href="/pkg/${p["name"].str}">${p["name"].str}</a></h4>
-          <p>${p["description"].str}</p>
+          <p class="pkg-desc">${p["description"].str}</p>
             # if p.hasKey("web"):
-            <button class="visit-pack-btn"><a href="${p["web"].str}"><i class="fas fa-link"> </i> Visit</a></button>
+            <a href="${p["web"].str}"><button class="visit-pack-btn"><i class="fas fa-link"> </i> Visit</button></a>
             #end
       </div>
       #end
     </div>
+    </div>
   </div>
+
+
+
+
+        

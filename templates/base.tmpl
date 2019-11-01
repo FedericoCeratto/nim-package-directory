@@ -7,7 +7,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="X-UA-Compatible" content="ie=edge">
-  <title>Nimble Package Directory</title>
+  <title>Nimble</title>
   <script src="https://kit.fontawesome.com/a30ba13df5.js" crossorigin="anonymous"></script>
   <meta name="description" content="">
   <link rel="icon" type="image/png"  href="images/favicon.png">
@@ -15,11 +15,10 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/thebigbaron/lime@v1.0.0/dist/lime/lime.min.css">
   <link rel="stylesheet" href="${req.makeUri("css/style.css", false)}">
   <link rel="search" type="application/opensearchdescription+xml" title="Nimble" href="https://nimble.directory/search.xml">
-  <script src="https://code.jquery.com/jquery-3.3.1.min.js" integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8=" crossorigin="anonymous"></script>
 </head>
 <body>
   <div class="nav">
-    <a href="/" class="logo"><img src="${req.makeUri("img/nimbledir-logo.png", false)}"></a>
+    <a href="/" class="logo"><img src="${req.makeUri("img/nimbledir-logo.png", false)}"><h4>Nimble Directory</h4></a>
   <div class="nav-btn">
     <label for="nav-check">
       <span></span>
@@ -29,23 +28,25 @@
   </div>
   <input type="checkbox" id="nav-check">
   <div class="nav-links">
-    <a href="/packages.xml"><i class="fas fa-rss style="color:#ed7616"></i> New Packages</a>
+    <a href="/packages.xml"><i class="fas fa-rss-square" style="color:orange"></i> New Packages</a>
     <a href="/about.html">About</a>
     <a href="https://nim-lang.org">Nim-lang</a>
   </div>
   </div>
   
-  <div>
+  <div class="content">
     ${content}
   </div>
 
+  
 <footer class="footer">
   <div class="footer-logo">
-    <img src="img/nimbledir-logo.png" alt="Nimble Directory">
+    <img src="${req.makeUri("img/nimbledir-logo.png", false)}">
+    <h2>Nimble Directory</h2>
   </div>
+  
   <hr>
-  <p>Copyright &copy; Section.</p>
+  <p>Copyright &copy; 2019 <a href="https://github.com/FedericoCeratto/nim-package-directory">Federico Ceratto</a>.</p>
 </footer>
 </body>
 </html>
-
