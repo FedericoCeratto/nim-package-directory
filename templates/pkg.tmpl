@@ -29,22 +29,20 @@
       <hr>   
     
     
+
     <p>
     #if pkg.has_key("github_versions"):
-        Available versions: 
         #if pkg["github_versions"].getElems().len > 0:
-          
+          Available versions:
         #  for semver in pkg["github_versions"].getElems():
             <span class="tag">${semver.str}</span>
         #  end
-          
+
         #else:
           No tagged versions available
         #end
-        
     #end
     </p>
-    
     <p>License:
     #     let licns = pkg["license"].str.toLowerAscii.strip
     #     if licns == "mit":
@@ -94,7 +92,7 @@
             <img class="slickbadge" id="docstatusbadge">
           </a>
           </p> 
-        <button class="pkg-btn">Rebuild now</button>
+        <button class="pkg-btn" id="rebuildbtn">Rebuild now</button>
         
         
         
