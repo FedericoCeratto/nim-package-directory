@@ -316,7 +316,7 @@ a:hover {
 }
 
 .pkg-title {
-  font-size:1.6em;
+  font-size:2em;
   margin-bottom:.2em;
 }
 
@@ -332,7 +332,7 @@ a:hover {
   background-color: #585d76;
   margin: .1em;
   padding: .2em .3em;
-  font-size: .9em;
+  font-size: 1em;
   color: white;
   text-shadow: 1px 1px #383f3d;
   border-radius: 50px;
@@ -343,7 +343,7 @@ a:hover {
 }
 
 .pkg-desc {
-  font-size:.8em;
+  font-size:1em;
   white-space: nowrap;
   overflow: hidden;
   margin:0;
@@ -353,7 +353,7 @@ a:hover {
 #cmd {
   width:inherit;
   border:1px solid #c2c2c2;
-  font-size:.8em;
+  font-size:.9em;
   margin:0;
 }
 
@@ -375,7 +375,7 @@ a:hover {
 
 
 
-#searchbox-pkg{
+#searchitem{
   max-width:90%;
   width:400px;
   margin:0 auto;
