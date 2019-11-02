@@ -6,4 +6,5 @@ before_install:
 script:
   - docker run nimlang/nim nim --version
   - docker run -v "$(pwd):/project" -w /project nimlang/nim sh -c "nimble build -y"
-  - docker run -v "$(pwd):/project" -w /project nimlang/nim sh -c "NIMPKGDIR_ENABLE_FUNCTEST=1 nim c -p=. -r tests/test_functional.nim"
+  - docker run -v "$(pwd):/project" -w /project nimlang/nim sh -c "nim c -p=. tests/test_functional.nim"
+  - docker run -v "$(pwd):/project" -w /project nimlang/nim sh -c "SHOWOUT=1 ./tests/test_functional"

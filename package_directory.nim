@@ -1778,7 +1778,8 @@ proc main() =
   cache = load_cache()
   scan_pkgs_dir(conf.tmp_nimble_root_dir)
   #asyncCheck start_nim_commit_polling(github_nim_commit_polling_time)
-  asyncCheck run_systemd_sdnotify_pinger(sdnotify_ping_time_s)
+  if getEnv("FUNCTEST") == "":
+    asyncCheck run_systemd_sdnotify_pinger(sdnotify_ping_time_s)
   asyncCheck run_github_packages_json_polling(github_packages_json_polling_time_s)
 
   log_info "starting server"

@@ -13,11 +13,10 @@ import httpclient
 import json
 import strutils, unittest
 
-from os import existsEnv, sleep
+import os
+import osproc
 
-if not existsEnv("NIMPKGDIR_ENABLE_FUNCTEST"):
-  echo "Set NIMPKGDIR_ENABLE_FUNCTEST to enable functional tests"
-  quit(1)
+putEnv("FUNCTEST", "1")
 
 const url="http://localhost:5000"
 
@@ -30,8 +29,17 @@ proc post(url: string): string =
   return newHttpClient().postContent(url)
 
 
-
 suite "functional tests":
+
+  echo "starting pkgdir"
+  let pkgdir_process =
+    if getEnv("SHOWOUT") != "":
+      startProcess("./package_directory", options={poEvalCommand, poParentStreams})
+    else:
+      startProcess("./package_directory", options={poEvalCommand})
+
+  sleep 800
+  doAssert pkgdir_process.running()
 
   test "index":
     var page = get url
@@ -138,7 +146,16 @@ suite "functional tests":
       check page.contains "https://github.com/dom96/jester/blob/master/jester.nim#L108"
       check page.contains "https://github.com/dom96/jester/blob/master/jester.nim#L113"
 
-    #TODO: API
+  echo "stopping pkgdir"
+  terminate pkgdir_process
+  sleep 500
+  while pkgdir_process.running():
+    echo "Error: still running"
+    kill pkgdir_process
+    sleep 500
+
+
+  #TODO: API
 
   # test "/ci/install_report":
   #   discard
