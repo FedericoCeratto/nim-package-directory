@@ -1,34 +1,21 @@
 version: 2
 jobs:
   build:
-    machine: true
+    working_directory: /usr/src/dotenv
+    docker:
+      - image: nimlang/nim
+    branches:
+      only:
+        - master
     steps:
-      - run: echo 'export PATH=~/.nimble/bin:$PATH' >> $BASH_ENV
       - checkout
-      # Reuse cached Nim compiler
-      - restore_cache:
-          key: compiler-0002
       - run:
-          command: |
-            if [ -f ~/.nimble/bin/choosenim ]; then
-              echo "Updating Nim using choosenim"
-              choosenim stable
-            else
-              echo "Installing choosenim and Nim"
-              wget https://raw.githubusercontent.com/dom96/choosenim/master/scripts/choosenim-unix-init.sh
-              sh choosenim-unix-init.sh -y
-            fi
-      - save_cache:
-          key: compiler-0002
-          paths:
-            - ~/.nimble
-            - ~/.choosenim
-      - run:
-          command: |
-            nimble build -y
-            #NIMPKGDIR_ENABLE_FUNCTEST=1 nim c -p=. -r tests/test_functional.nim
-      - store_artifacts:
-          path: test-reports/
-          destination: tr1
-      - store_test_results:
-          path: test-reports/
+          name: test
+          command: nim c -r tests/main.nim
+workflows:
+  version: 2
+  build_and_test:
+    jobs:
+      - build
+
+
