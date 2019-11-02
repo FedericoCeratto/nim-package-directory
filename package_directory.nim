@@ -43,7 +43,7 @@ const
   build_timeout_seconds = 60 * 4
   github_readme_tpl = "https://api.github.com/repos/$#/readme"
   github_tags_tpl = "https://api.github.com/repos/$#/tags"
-  github_latest_version_tpl = "https://api.github.com/repos/$#/releases/latest"
+  github_api_releases_tpl = "https://api.github.com/repos/$#/releases"
   github_doc_index_tpl = "https://$#.github.io/$#/index.html"
   github_repository_search_tpl = "https://api.github.com/search/repositories?q=language:nim+pushed:>$#&per_page=$#sort=$#&page=$#"
   github_caching_time = 600
@@ -77,7 +77,7 @@ let zmqsock = listen("tcp://*:" & $task_pubsub_port, mode=PUB)
 when defined(systemd):
   let log = newJournaldLogger()
 else:
-  let log = newAsyncFileLogger()
+  let log = newStdoutLogger()
 
 
 proc log_debug(args: varargs[string, `$`]) =
@@ -284,12 +284,21 @@ const
 #     ctx.add_rule(Allow, sc)
 #   ctx.load()
 
+proc fetch_github_packages_json(): Future[string] {.async.} =
+  ## Fetch packages.json from GitHub
+  log_debug "fetching ", github_packages_json_raw_url
+  return await newAsyncHttpClient().getContent(github_packages_json_raw_url)
 
 proc load_packages*() =
   ## Load packages.json
   ## Rebuild packages_by_tag, packages_by_description_word
   log_debug "loading $#" % conf.packages_list_fname
   pkgs.clear()
+  if not conf.packages_list_fname.existsFile:
+    log_info "packages list file not found. First run?"
+    let new_pkg_raw = waitFor fetch_github_packages_json()
+    conf.packages_list_fname.writeFile(new_pkg_raw)
+
   let pkg_list = conf.packages_list_fname.parseFile
   for pdata in pkg_list:
     if not pdata.hasKey("name"):
@@ -383,20 +392,15 @@ proc fetch_github_readme*(pkg: Pkg, owner_repo_name: string) {.async.} =
     log_debug getCurrentExceptionMsg()
     pkg["github_readme"] = newJString ""
 
-proc fetch_github_doc_pages(pkg: Pkg, owner, repo_name: string) =
+proc fetch_github_doc_pages(pkg: Pkg, owner, repo_name: string) {.async.} =
   ## Fetch documentation pages from GitHub
   let url = github_doc_index_tpl % [owner.toLowerAscii, repo_name]
   log_debug "Checking ", url
-  let resp = waitFor newAsyncHttpClient().get(url)
+  let resp = await newAsyncHttpClient().get(url)
   if resp.status.startsWith("200"):
     pkg["doc"] = newJString url
   else:
     log_debug "Doc not found at ", url
-
-proc fetch_github_packages_json(): string =
-  ## Fetch packages.json from GitHub
-  log_debug "fetching ", github_packages_json_raw_url
-  return waitFor newAsyncHttpClient().getContent(github_packages_json_raw_url)
 
 proc append(build_history: var Deque[BuildHistoryItem], name: string,
     build_time: Time, build_status, doc_build_status: BuildStatus) =
@@ -425,31 +429,31 @@ proc strip_html*(html: string): string =
       inside_tag = false
 
 
-proc run_process(bin_path, desc, work_dir: string,
-    timeout: int, log_output: bool,
-    args: varargs[string, `$`]): (bool, string) {.discardable.} =
-  ## Run command with timeout
-  # TODO: async
-
-  log_debug "running: <" & bin_path & " " & join(args, " ") & "> in " & work_dir
-
-  var p = startProcess(
-    bin_path, args=args,
-    workingDir=work_dir,
-    options={poStdErrToStdOut}
-  )
-  let exit_val = p.waitForExit(timeout=timeout * 1000)
-  let stdout_str = p.outputStream().readAll()
-
-  if log_output or (exit_val != 0):
-    if stdout_str.len > 0:
-      log_debug "Stdout: ---\n$#---" % stdout_str
-
-  if exit_val == 0:
-    log_debug "$# successful" % desc
-  else:
-    log.error "run_process: $# failed, exit value: $#" % [desc, $exit_val]
-  return ((exit_val == 0), stdout_str)
+# proc run_process(bin_path, desc, work_dir: string,
+#     timeout: int, log_output: bool,
+#     args: varargs[string, `$`]): (bool, string) {.discardable.} =
+#   ## Run command with timeout
+#   # TODO: async
+#
+#   log_debug "running: <" & bin_path & " " & join(args, " ") & "> in " & work_dir
+#
+#   var p = startProcess(
+#     bin_path, args=args,
+#     workingDir=work_dir,
+#     options={poStdErrToStdOut}
+#   )
+#   let exit_val = p.waitForExit(timeout=timeout * 1000)
+#   let stdout_str = p.outputStream().readAll()
+#
+#   if log_output or (exit_val != 0):
+#     if stdout_str.len > 0:
+#       log_debug "Stdout: ---\n$#---" % stdout_str
+#
+#   if exit_val == 0:
+#     log_debug "$# successful" % desc
+#   else:
+#     log.error "run_process: $# failed, exit value: $#" % [desc, $exit_val]
+#   return ((exit_val == 0), stdout_str)
 
 proc run_process2(bin_path, desc, work_dir: string,
     timeout: int, log_output: bool,
@@ -504,6 +508,30 @@ proc run_process2(bin_path, desc, work_dir: string,
   return (exit_code, elapsed, output)
 
 
+proc is_newer(b, a: string): bool =
+  ## Based on Nimble implementation, compares versions a.b.c by simply
+  ## comparing the integers :-/
+  for (ai, bi) in zip(a.split('.'), b.split('.')):
+    let aa = parseInt(ai)
+    let bb = parseInt(bi)
+    if bb > aa:
+      return true
+    elif aa > bb:
+      return false
+
+  return false
+
+proc extract_latest_version(releases: JsonNode): (string, JsonNode) =
+  ## Extracts the release metadata chunk from `releases` matching the latest release
+  var latest_version = "-1.-1.-1"
+  for r in releases:
+    let version = r["tag_name"].str.strip().strip(trailing=false, chars={'v'})
+    if is_newer(version, latest_version):
+      latest_version = version
+      result = (version, r)
+
+  log_debug "Picking latest version from GH tags: ", latest_version
+
 proc fetch_github_versions(pkg: Pkg, owner_repo_name: string) {.async.} =
   ## Fetch versions from GH from releases and tags
   ## Set github_versions, github_latest_version, github_latest_version_url
@@ -528,16 +556,22 @@ proc fetch_github_versions(pkg: Pkg, owner_repo_name: string) {.async.} =
   pkg["github_versions"] = version_names
   log_debug "fetched $# GH versions" % $len(version_names)
 
-  log_debug "fetching GH latest vers ", github_latest_version_tpl % owner_repo_name
+  log_debug "fetching GH releases ", github_api_releases_tpl % owner_repo_name
+  var releases: JsonNode
   try:
-    let latest_version = await getGHJson(github_latest_version_tpl % owner_repo_name)
-    var latest_version_name = latest_version["name"].str.strip
-    if latest_version_name.startsWith("v"):
-      latest_version_name = latest_version_name.strip(trailing=false, chars={'v'})
-    pkg["github_latest_version"] = newJString latest_version_name
-    pkg["github_latest_version_url"] = newJString latest_version["tarball_url"].str
-    pkg["github_latest_version_time"] = newJString latest_version["published_at"].str
+    releases = await getGHJson(github_api_releases_tpl % owner_repo_name)
   except:
+    log_debug getCurrentExceptionMsg()
+    releases = newJArray()
+
+  if releases.len > 0:
+    let (latest_version, meta) = extract_latest_version(releases)
+    doAssert meta != nil
+    pkg["github_latest_version"] = newJString latest_version
+    pkg["github_latest_version_url"] = newJString meta["tarball_url"].str
+    pkg["github_latest_version_time"] = newJString meta["published_at"].str
+
+  else:
     log_debug getCurrentExceptionMsg()
     log_debug "No releases - falling back to tags"
     var latest = "0"
@@ -569,7 +603,7 @@ proc fetch_github_repository_stats(sorting="updated", pagenum=1, limit=200, init
   let date = initial_date.format("yyyy-MM-dd")
   let q = github_repository_search_tpl % [date, $limit, sorting, $pagenum]
   log_info "Searching GH repos: '$#'" % q
-  let query_res = waitFor getGHJson(q)
+  let query_res = await getGHJson(q)
   if sorting == "updated":
     return query_res["items"].elems.sortedByIt(it["updated_at"].str).reversed()
   return query_res["items"].elems
@@ -1012,7 +1046,7 @@ router mainRouter:
         else:
           log_debug "$# not found in package list" % pname
 
-    let github_trending = waitFor github_trending_packages(request, pkgs)
+    let github_trending = await github_trending_packages(request, pkgs)
 
     let home = generate_home_page(top_pkgs, new_pkgs,
                                   github_trending)
@@ -1066,9 +1100,9 @@ router mainRouter:
         if owner_repo_name.endswith(".git"):
           owner_repo_name = owner_repo_name[0..^5]
         pkg["github_owner"] = newJString owner
-        waitFor pkg.fetch_github_readme(owner_repo_name)
-        waitFor pkg.fetch_github_versions(owner_repo_name)
-        pkg.fetch_github_doc_pages(owner, repo_name)
+        await pkg.fetch_github_readme(owner_repo_name)
+        await pkg.fetch_github_versions(owner_repo_name)
+        await pkg.fetch_github_doc_pages(owner, repo_name)
 
     resp base_page(request, generate_pkg_page(pkg))
 
@@ -1139,6 +1173,12 @@ router mainRouter:
     log_req request
     stats.incr("views")
     resp conf.packages_list_fname.readFile
+
+  get "/api/v1/package_count":
+    ## Serve the package count
+    log_req request
+    stats.incr("views")
+    resp $pkgs.len
 
   include "templates/doc_files_list.tmpl"
   get "/docs/@pkg_name/?":
@@ -1696,7 +1736,7 @@ proc run_github_packages_json_polling(poll_time_s: int) {.async.} =
       await sleepAsync poll_time_s * 1000
     log_debug "Polling GitHub packages.json"
     try:
-      let new_pkg_raw = fetch_github_packages_json()
+      let new_pkg_raw = await fetch_github_packages_json()
       if new_pkg_raw == conf.packages_list_fname.readFile:
         log_debug "No changes"
         stats.gauge("packages_all_known", pkgs.len)
