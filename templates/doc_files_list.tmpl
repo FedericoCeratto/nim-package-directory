@@ -1,16 +1,13 @@
 #? stdtmpl | standard
 #proc generate_doc_files_list_page(pkg_name: string, m: PkgDocMetadata): string =
 #  result = ""
-<div class="panel">
-  <div class="panel-header">
-    <div class="panel-title">
+<div class="doc-list container">
       <h4>Hosted Documentation for <a href="/pkg/${pkg_name}">${pkg_name}</a></h4>
-    </div>
-  </div>
+   
   <ul>
 #    for fn in m.fnames:
     <li><a href="/docs/${pkg_name}/${fn}">${fn.replace(".html", "")}</a></li>
 #    end for
   </ul>
-  <small> ${m.fnames.len} documented files.</small><br>
+  <p> ${m.fnames.len} documented files.</p><br>
 </div>
