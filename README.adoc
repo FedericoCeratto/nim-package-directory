@@ -17,6 +17,10 @@ Currently running at https://nimble.directory
 - [x] Package count at /api/v1/package_count
 - [ ] Pkg metadata signing
 
+=======
+.Prerequisites:
+- ZMQ on your platform
+
 .Use:
 - For Development, Copy and edit `conf.json.example` to `conf.json`.
 - Download the Nims packages.json to projects root folder: https://raw.githubusercontent.com/nim-lang/packages/master/packages.json
