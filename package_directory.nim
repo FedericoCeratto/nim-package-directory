@@ -1304,7 +1304,7 @@ router mainRouter:
         desc: pkg["description"].str,
         url: item_url,
         guid: item_url,
-        pubdate: $item.first_seen_time
+        pubdate: $item.first_seen_time.utc.format("ddd, dd MMM yyyy hh:mm:ss zz")
       )
       rss_items.add i
 
@@ -1312,8 +1312,8 @@ router mainRouter:
       title="Nim packages",
       desc="New and updated Nim packages",
       url=url,
-      build_date="",
-      pub_date="",
+      build_date= getTime().utc.format("ddd, dd MMM yyyy hh:mm:ss zz"),
+      pub_date= getTime().utc.format("ddd, dd MMM yyyy hh:mm:ss zz"),
       ttl=3600,
       rss_items
     )
