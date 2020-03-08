@@ -18,8 +18,10 @@ Currently running at https://nimble.directory
 - [ ] Pkg metadata signing
 
 =======
-.Prerequisites:
-- ZMQ on your platform
+
+.Prerequisites :
+- systemd watchdog
+- optional: StatsD to receive application metrics
 
 .Use:
 - For Development, Copy and edit `conf.json.example` to `conf.json`.

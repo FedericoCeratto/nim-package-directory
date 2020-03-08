@@ -28,8 +28,7 @@ from times import epochTime
 import jester,
   morelogging,
   sdnotify,
-  statsd_client,
-  zmq
+  statsd_client
 
 import github,
   signatures,
@@ -72,7 +71,6 @@ let conf = load_conf()
 let github_token_headers = newHttpHeaders({
   "Authorization": "token $#" % conf.github_token})
 let stats = newStatdClient(prefix="nim_package_directory")
-let zmqsock = listen("tcp://*:" & $task_pubsub_port, mode=PUB)
 
 when defined(systemd):
   let log = newJournaldLogger()
@@ -896,7 +894,6 @@ proc fetch_and_build_pkg_if_needed(pname: string, force_rebuild=false) {.async.}
   # Fetch or update pkg
   let url = pkgs[pname]["url"].str
 
-  zmqsock.send("build:start " & pname)
   try:
     let t0 = epochTime()
     await fetch_and_build_pkg_using_nimble_old(pname)
@@ -1767,7 +1764,6 @@ onSignal(SIGINT, SIGTERM):
   log.info "Exiting"
   cache.save()
   #save_packages()
-  zmqsock.close()
   quit()
 
 proc main() =
