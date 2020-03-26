@@ -46,7 +46,7 @@ const
   github_doc_index_tpl = "https://$#.github.io/$#/index.html"
   github_repository_search_tpl = "https://api.github.com/search/repositories?q=language:nim+pushed:>$#&per_page=$#sort=$#&page=$#"
   github_caching_time = 600
-  github_packages_json_raw_url= "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json"
+  github_packages_json_raw_url = "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json"
   github_packages_json_polling_time_s = 10 * 60
   git_bin_path = "/usr/bin/git"
   sdnotify_ping_time_s = 1
@@ -70,7 +70,7 @@ const
 let conf = load_conf()
 let github_token_headers = newHttpHeaders({
   "Authorization": "token $#" % conf.github_token})
-let stats = newStatdClient(prefix="nim_package_directory")
+let stats = newStatdClient(prefix = "nim_package_directory")
 
 when defined(systemd):
   let log = newJournaldLogger()
@@ -146,9 +146,9 @@ var pkgs_doc_files = newTable[string, PkgDocMetadata]()
 # tag -> package name
 # initialized/updated by load_packages
 var packages_by_tag = newTable[string, seq[string]]()
-# word -> package name
-# word -> package name
-# initialized/updated by load_packages
+ # word -> package name
+ # word -> package name
+ # initialized/updated by load_packages
 var packages_by_description_word = newTable[string, seq[string]]()
 
 # symbol -> seq[PkgSymbol]
@@ -224,7 +224,7 @@ proc save_pkg_metadata(j: PkgDocMetadata, fn: string) =
   k.build_output = uniescape(j.build_output)
   if k.version == "":
     k.version = "?"
-  k.version = k.version.strip(chars={'\0'})
+  k.version = k.version.strip(chars = {'\0'})
   f.store(k)
   f.close()
 
@@ -320,7 +320,7 @@ proc load_packages*() =
     let orig_words = pdata["description"].str.split({' ', ','})
     for orig_word in orig_words:
       if orig_word.len < 3:
-        continue  # ignore short words
+        continue # ignore short words
       let word = orig_word.toLowerAscii
       if not packages_by_description_word.hasKey(word):
         packages_by_description_word[word] = @[]
@@ -351,19 +351,19 @@ proc search_packages*(query: string): CountTable[string] =
     # matching by pkg name, weighted for full or partial match
     for pn in pkgs.keys():
       if item.normalize() == pn:
-        found_pkg_names.inc(pn, val=5)
+        found_pkg_names.inc(pn, val = 5)
       elif pn.contains(item.normalize()):
-        found_pkg_names.inc(pn, val=3)
+        found_pkg_names.inc(pn, val = 3)
 
-    if packages_by_tag.has_key(item):
+    if packages_by_tag.hasKey(item):
       for pn in packages_by_tag[item]:
         # matching by tags is weighted more than by word
-        found_pkg_names.inc(pn, val=3)
+        found_pkg_names.inc(pn, val = 3)
 
     # matching by description, weighted 1
-    if packages_by_description_word.has_key(item.toLowerAscii):
+    if packages_by_description_word.hasKey(item.toLowerAscii):
       for pn in packages_by_description_word[item.toLowerAscii]:
-        found_pkg_names.inc(pn, val=1)
+        found_pkg_names.inc(pn, val = 1)
 
   # sort packages by best match
   found_pkg_names.sort()
@@ -395,7 +395,7 @@ proc fetch_github_doc_pages(pkg: Pkg, owner, repo_name: string) {.async.} =
   let url = github_doc_index_tpl % [owner.toLowerAscii, repo_name]
   log_debug "Checking ", url
   let resp = await newAsyncHttpClient().get(url)
-  if resp.status.startsWith("200"):
+  if resp.status.startswith("200"):
     pkg["doc"] = newJString url
   else:
     log_debug "Doc not found at ", url
@@ -461,9 +461,9 @@ proc run_process2(bin_path, desc, work_dir: string,
     t0 = epochTime()
     p = startProcess(
       bin_path,
-      args=args,
-      workingDir=work_dir,
-      options={poStdErrToStdOut}
+      args = args,
+      workingDir = work_dir,
+      options = {poStdErrToStdOut}
     )
     pid = p.processID()
 
@@ -523,7 +523,7 @@ proc extract_latest_version(releases: JsonNode): (string, JsonNode) =
   ## Extracts the release metadata chunk from `releases` matching the latest release
   var latest_version = "-1.-1.-1"
   for r in releases:
-    let version = r["tag_name"].str.strip().strip(trailing=false, chars={'v'})
+    let version = r["tag_name"].str.strip().strip(trailing = false, chars = {'v'})
     if is_newer(version, latest_version):
       latest_version = version
       result = (version, r)
@@ -541,7 +541,7 @@ proc fetch_github_versions(pkg: Pkg, owner_repo_name: string) {.async.} =
     let rtags = await ac.getContent(github_tags_tpl % owner_repo_name)
     let tags = parseJson(rtags)
     for t in tags:
-      let name = t["name"].str.strip(trailing=false, chars={'v'})
+      let name = t["name"].str.strip(trailing = false, chars = {'v'})
       if name.len > 0:
         version_names.add newJString name
   except:
@@ -587,7 +587,8 @@ proc fetch_github_versions(pkg: Pkg, owner_repo_name: string) {.async.} =
 
     pkg["github_latest_version_time"] = newJString ""
 
-proc fetch_github_repository_stats(sorting="updated", pagenum=1, limit=200, initial_date: DateTime):
+proc fetch_github_repository_stats(sorting = "updated", pagenum = 1,
+    limit = 200, initial_date: DateTime):
     Future[seq[JsonNode]] {.async.} =
   ## Fetch projects on GitHub
   let date = initial_date.format("yyyy-MM-dd")
@@ -598,7 +599,8 @@ proc fetch_github_repository_stats(sorting="updated", pagenum=1, limit=200, init
     return query_res["items"].elems.sortedByIt(it["updated_at"].str).reversed()
   return query_res["items"].elems
 
-proc github_trending_packages(request: Request, pkgs: Pkgs): Future[seq[JsonNode]] {.async.} =
+proc github_trending_packages(request: Request, pkgs: Pkgs): Future[seq[
+    JsonNode]] {.async.} =
   ## Trending GitHub packages
   # TODO: Dom: merge this into the procedure above ^
 
@@ -608,8 +610,8 @@ proc github_trending_packages(request: Request, pkgs: Pkgs): Future[seq[JsonNode
 
   result = @[]
   let pkgs_list = await fetch_github_repository_stats(
-    sorting="updated", pagenum=1, limit=20,
-    initial_date=utc(getTime() - 14.days)
+    sorting = "updated", pagenum = 1, limit = 20,
+    initial_date = utc(getTime() - 14.days)
   )
   var website_to_name = initTable[string, string]()
   for it in pkgs.values:
@@ -621,7 +623,7 @@ proc github_trending_packages(request: Request, pkgs: Pkgs): Future[seq[JsonNode
       # 2017-07-21T12:48:35Z
       let pa = p["pushed_at"].getStr()
       let t = parseTime(pa, "yyyy-MM-dd\'T\'HH:mm:ss", utc())
-      let d = toFriendlyInterval(t, getTime(), approx=2)
+      let d = toFriendlyInterval(t, getTime(), approx = 2)
       p["update_age"] = newJString d
     except:
       p["update_age"] = newJString ""
@@ -672,7 +674,8 @@ proc fetch_and_build_pkg_using_nimble_old(pname: string) {.async.} =
       ".",
       build_timeout_seconds,
       true,
-      @["install", $pname, "--verbose", "--nimbleDir=$#" % tmp_dir, "-y", "--debug"],
+      @["install", $pname, "--verbose", "--nimbleDir=$#" % tmp_dir, "-y",
+          "--debug"],
     )
 
   let build_status: BuildStatus =
@@ -687,7 +690,8 @@ proc fetch_and_build_pkg_using_nimble_old(pname: string) {.async.} =
 
   pkgs_doc_files[pname].build_status = build_status
   if build_status == BuildStatus.Timeout:
-    pkgs_doc_files[pname].build_output = "** Install test timed out after " & $build_timeout_seconds & " seconds **\n\n" & po.output
+    pkgs_doc_files[pname].build_output = "** Install test timed out after " &
+        $build_timeout_seconds & " seconds **\n\n" & po.output
   else:
     pkgs_doc_files[pname].build_output = po.output
 
@@ -734,11 +738,11 @@ proc locate_pkg_root_dir(pname: string): string =
   # /dev/shm/nim_package_dir/nimgame2/pkgs/nimgame2-0.1.0
   let pkgs_dir = conf.tmp_nimble_root_dir / pname / "pkgs"
   log_debug "scanning dir $#" % pkgs_dir
-  for kind, path in walkDir(pkgs_dir, relative=true):
+  for kind, path in walkDir(pkgs_dir, relative = true):
     log_debug "scanning $#" % path
     # FIXME: better heuristic
     if path.contains('-'):
-      let chunks = path.split('-', maxsplit=1)
+      let chunks = path.split('-', maxsplit = 1)
       if chunks[0].normalize() == pname:
         result = pkgs_dir / path
         log_debug "Found pkg root: ", result
@@ -777,10 +781,10 @@ proc build_docs(pname: string) {.async.} =
     )
     let success = (po.exit_code == 0)
     all_output.add DocBuildOutItem(
-      success_flag:success,
-      filename:fname,
-      desc:desc,
-      output:po.output
+      success_flag: success,
+      filename: fname,
+      desc: desc,
+      output: po.output
     )
     if success:
       # trim away <pkg_root_dir> and ".nim"
@@ -788,7 +792,7 @@ proc build_docs(pname: string) {.async.} =
       generated_doc_fnames.add basename & ".html"
       log_debug "adding ", basename & ".html"
 
-      for kind, path in walkDir(pkg_root_dir, relative=true):
+      for kind, path in walkDir(pkg_root_dir, relative = true):
         if path.endswith(".idx"):
           #generated_idx_fnames.add basename & ".idx"
           #idx_filenames.add path
@@ -837,12 +841,12 @@ proc generate_jsondoc(pname: string) {.async.} =
           let symbol_name = chunk["name"].getStr()
           let description = chunk{"description"}.getStr().strip_html()
           let symbol = PkgSymbol(
-            itype:chunk["type"].getStr(),
-            desc:description,
-            code:chunk["code"].getStr(),
-            filepath:fname[pkg_root_dir.len..^1],
-            line:chunk["line"].getInt(),
-            col:chunk["col"].getInt(),
+            itype: chunk["type"].getStr(),
+            desc: description,
+            code: chunk["code"].getStr(),
+            filepath: fname[pkg_root_dir.len..^1],
+            line: chunk["line"].getInt(),
+            col: chunk["col"].getInt(),
           )
           try:
             if not jsondoc_symbols[symbol_name].contains symbol:
@@ -850,7 +854,7 @@ proc generate_jsondoc(pname: string) {.async.} =
           except KeyError:
             jsondoc_symbols[symbol_name] = @[symbol]
 
-          let i:PkgSymbolsIndexer = (pname, symbol_name)
+          let i: PkgSymbolsIndexer = (pname, symbol_name)
           try:
             if not jsondoc_symbols_by_pkg[i].contains symbol:
               jsondoc_symbols_by_pkg[i].add(symbol)
@@ -858,10 +862,11 @@ proc generate_jsondoc(pname: string) {.async.} =
             jsondoc_symbols_by_pkg[i] = @[symbol]
 
       except:
-        log_debug "failed to read and parse " & json_fn & " : " & getCurrentExceptionMsg()
+        log_debug "failed to read and parse " & json_fn & " : " &
+            getCurrentExceptionMsg()
 
 
-proc fetch_and_build_pkg_if_needed(pname: string, force_rebuild=false) {.async.} =
+proc fetch_and_build_pkg_if_needed(pname: string, force_rebuild = false) {.async.} =
   ## Fetch package and build docs
   ## Modifies pkgs_doc_files
 
@@ -915,13 +920,13 @@ proc fetch_and_build_pkg_if_needed(pname: string, force_rebuild=false) {.async.}
     )
     let fn = package_parent_dir(pname) & "/nimpkgdir.json"
     save_pkg_metadata(pkgs_doc_files[pname], fn)
-    return  # install failed
+    return # install failed
 
   stats.incr("build_succeded")
 
   try:
     let t1 = epochTime()
-    await build_docs(pname)  # this can raise
+    await build_docs(pname) # this can raise
     let elapsed = epochTime() - t1
     stats.gauge("doc_build_time", elapsed)
   finally:
@@ -935,14 +940,15 @@ proc fetch_and_build_pkg_if_needed(pname: string, force_rebuild=false) {.async.}
   )
 
   if pkgs[pname].hasKey("github_latest_version"):
-    pkgs_doc_files[pname].version = pkgs[pname]["github_latest_version"].str.strip
+    pkgs_doc_files[pname].version = pkgs[pname][
+        "github_latest_version"].str.strip
   else:
     log_debug "FIXME github_latest_version"
     pkgs_doc_files[pname].version = "?"
 
   try:
     let t2 = epochTime()
-    await generate_jsondoc(pname)  # this can raise
+    await generate_jsondoc(pname) # this can raise
     let elapsed = epochTime() - t2
     stats.gauge("jsondoc_build_time", elapsed)
   except:
@@ -1007,7 +1013,7 @@ proc top_keys*[T](t: CountTable[T], n: int): seq[T] =
 # Jester settings
 
 settings:
-    port = conf.port
+  port = conf.port
 
 # routes
 
@@ -1029,11 +1035,11 @@ router mainRouter:
     # List 5 newest packages
     var new_pkgs: seq[Pkg] = @[]
     for n in 1..min(cache.pkgs_history.len, 5):
-        let pname = cache.pkgs_history[^n].name.normalize()
-        if pkgs.hasKey(pname):
-          new_pkgs.add pkgs[pname]
-        else:
-          log_debug "$# not found in package list" % pname
+      let pname = cache.pkgs_history[^n].name.normalize()
+      if pkgs.hasKey(pname):
+        new_pkgs.add pkgs[pname]
+      else:
+        log_debug "$# not found in package list" % pname
 
     let github_trending = await github_trending_packages(request, pkgs)
 
@@ -1064,7 +1070,8 @@ router mainRouter:
       if pm.building:
         current_builds.add pname
 
-    resp base_page(request, generate_build_history_page(build_history, current_builds))
+    resp base_page(request, generate_build_history_page(build_history,
+        current_builds))
 
   get "/pkg/@pkg_name/?":
     log_req request
@@ -1079,7 +1086,7 @@ router mainRouter:
     let pkg = pkgs[pname]
     let url = pkg["url"].str
     if url.startswith("https://github.com/") or url.startswith("http://github.com/"):
-      if not pkg.has_key("github_last_update_time") or pkg["github_last_update_time"].num +
+      if not pkg.hasKey("github_last_update_time") or pkg["github_last_update_time"].num + 
           github_caching_time < epochTime().int:
         # pkg is on GitHub and needs updating
         pkg["github_last_update_time"] = newJInt epochTime().int
@@ -1209,14 +1216,14 @@ router mainRouter:
         ""
 
     var idx_filenames: strSeq = @[]
-    for kind, path in walkDir(pkg_root_dir, relative=true):
+    for kind, path in walkDir(pkg_root_dir, relative = true):
       if path.endswith(".idx"):
         idx_filenames.add path
         #let chunks = path.split('-', maxsplit=1)
         #if chunks[0].normalize() == pname:
         #  result = pkgs_dir / path
 
-    # Show files summary
+      # Show files summary
     let s = %* {"version": 1, "idx_filenames": idx_filenames}
     resp $s
 
@@ -1306,15 +1313,15 @@ router mainRouter:
       rss_items.add i
 
     let r = generate_rss_feed(
-      title="Nim packages",
-      desc="New and updated Nim packages",
-      url=url,
-      build_date= getTime().utc.format("ddd, dd MMM yyyy hh:mm:ss zz"),
-      pub_date= getTime().utc.format("ddd, dd MMM yyyy hh:mm:ss zz"),
-      ttl=3600,
+      title = "Nim packages",
+      desc = "New and updated Nim packages",
+      url = url,
+      build_date = getTime().utc.format("ddd, dd MMM yyyy hh:mm:ss zz"),
+      pub_date = getTime().utc.format("ddd, dd MMM yyyy hh:mm:ss zz"),
+      ttl = 3600,
       rss_items
     )
-    resp(r, contentType="application/rss+xml")
+    resp(r, contentType = "application/rss+xml")
 
   get "/stats":
     log_req request
@@ -1356,7 +1363,7 @@ router mainRouter:
         if md.version == "":
           "..."
         else:
-          md.version.strip(chars={'\0'})
+          md.version.strip(chars = {'\0'})
       let badge = version_badge_tpl % [version, version]
       resp(Http200, xml_no_cache_headers, badge)
     except:
@@ -1514,14 +1521,14 @@ router mainRouter:
     ## Force new build
     log_req request
     let pname = normalize(@"pkg_name")
-    asyncCheck fetch_and_build_pkg_if_needed(pname, force_rebuild=true)
+    asyncCheck fetch_and_build_pkg_if_needed(pname, force_rebuild = true)
     resp "ok"
 
   get "/robots.txt":
     ## Serve robots.txt to throttle bots
     resp "User-agent: *\nCrawl-delay: 300\n"
 
-  include "templates/jsondoc_symbols.tmpl"  # generate_jsondoc_symbols_page
+  include "templates/jsondoc_symbols.tmpl" # generate_jsondoc_symbols_page
   get "/searchitem":
     ## Search for jsondoc symbol across all packages
     log_req request
@@ -1536,7 +1543,7 @@ router mainRouter:
     resp base_page(request, body)
 
   template resp*(content: JsonNode): typed =
-    resp($content, contentType="application/json")
+    resp($content, contentType = "application/json")
 
   get "/api/v1/search_symbol":
     ## Search for jsondoc symbol across all packages
@@ -1549,14 +1556,14 @@ router mainRouter:
         @[]
     resp %matches
 
-  include "templates/jsondoc_pkg_symbols.tmpl"  # generate_jsondoc_pkg_symbols_page
+  include "templates/jsondoc_pkg_symbols.tmpl" # generate_jsondoc_pkg_symbols_page
   post "/searchitem_pkg":
     ## Search for jsondoc symbol in one package
     log_req request
     stats.incr("views")
     let pname = normalize(@"pkg_name").strip()
     let query = @("query").strip()
-    let url = pkgs[pname]["url"].str.strip(chars={'/'}, leading=false)
+    let url = pkgs[pname]["url"].str.strip(chars = {'/'}, leading = false)
     let matches =
       try:
         jsondoc_symbols_by_pkg[(pname, query)]
@@ -1736,7 +1743,8 @@ proc run_github_packages_json_polling(poll_time_s: int) {.async.} =
         if pdata.hasKey("name"):
           let pname = pdata["name"].str.normalize()
           if not pkgs.hasKey(pname):
-            cache.pkgs_history.add PkgHistoryItem(name:pname, first_seen_time:getTime())
+            cache.pkgs_history.add PkgHistoryItem(name: pname,
+                first_seen_time: getTime())
             log_debug "New pkg added on GH: $#" % pname
 
       cache.save()
