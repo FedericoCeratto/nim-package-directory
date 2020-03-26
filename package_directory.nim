@@ -17,7 +17,8 @@ import asyncdispatch,
  streams,
  strutils,
  tables,
- times
+ times,
+ uri
 
 from algorithm import sort, sorted, sortedByIt, reversed
 from marshal import store, load
@@ -125,7 +126,8 @@ type
     version: string
 
   RssItem = object
-    title, desc, url, guid, pubDate: string
+    title, desc, pubDate: string
+    url, guid: Uri
   BuildHistoryItem = tuple
     name: string
     build_time: Time
@@ -1086,7 +1088,7 @@ router mainRouter:
     let pkg = pkgs[pname]
     let url = pkg["url"].str
     if url.startswith("https://github.com/") or url.startswith("http://github.com/"):
-      if not pkg.hasKey("github_last_update_time") or pkg["github_last_update_time"].num + 
+      if not pkg.hasKey("github_last_update_time") or pkg["github_last_update_time"].num +
           github_caching_time < epochTime().int:
         # pkg is on GitHub and needs updating
         pkg["github_last_update_time"] = newJInt epochTime().int
@@ -1291,7 +1293,7 @@ router mainRouter:
     ## New and updated packages feed
     log_req request
     stats.incr("views_rss")
-    let baseurl = conf.public_baseurl
+    let baseurl = conf.public_baseurl.parseUri
     let url = baseurl / "packages.xml"
 
     var rss_items: seq[RssItem] = @[]
