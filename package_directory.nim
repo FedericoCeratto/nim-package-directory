@@ -19,6 +19,7 @@ import asyncdispatch,
  times,
  uri
 
+from xmltree import escape
 from algorithm import sort, sorted, sortedByIt, reversed
 from marshal import store, load
 from posix import onSignal, SIGINT, SIGTERM, getpid
@@ -1305,7 +1306,7 @@ router mainRouter:
       let item_url = baseurl / "pkg" / pn
       let i = RssItem(
         title: pn,
-        desc: pkg["description"].str,
+        desc: xmltree.escape(pkg["description"].str),
         url: item_url,
         guid: item_url,
         pubdate: $item.first_seen_time.utc.format("ddd, dd MMM yyyy hh:mm:ss zz")
