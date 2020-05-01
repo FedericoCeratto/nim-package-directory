@@ -12,7 +12,6 @@ import asyncdispatch,
  json,
  os,
  osproc,
- parseopt,
  sequtils,
  streams,
  strutils,
@@ -31,10 +30,7 @@ import jester,
   sdnotify,
   statsd_client
 
-import github,
-  signatures,
-  email,
-  friendly_timeinterval,
+import signatures,
   persist
 
 
@@ -621,14 +617,16 @@ proc github_trending_packages(request: Request, pkgs: Pkgs): Future[seq[
       website_to_name[it["web"].str] = it["name"].str
 
   for p in pkgs_list:
-    try:
-      # 2017-07-21T12:48:35Z
-      let pa = p["pushed_at"].getStr()
-      let t = parseTime(pa, "yyyy-MM-dd\'T\'HH:mm:ss", utc())
-      let d = toFriendlyInterval(t, getTime(), approx = 2)
-      p["update_age"] = newJString d
-    except:
-      p["update_age"] = newJString ""
+    p["update_age"] = newJString ""
+    # TODO: remove last update
+    #try:
+    #  # 2017-07-21T12:48:35Z
+    #  let pa = p["pushed_at"].getStr()
+    #  let t = parse(pa, "yyyy-MM-dd\'T\'HH:mm:ss", utc())
+    #  let d = toFriendlyInterval(t, now().utc, approx = 2)
+    #  p["update_age"] = newJString d
+    #except:
+    #  p["update_age"] = newJString ""
 
     let url = p["html_url"].str
     if website_to_name.hasKey url:
