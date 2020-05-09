@@ -1527,7 +1527,18 @@ router mainRouter:
 
   get "/robots.txt":
     ## Serve robots.txt to throttle bots
-    resp "User-agent: *\nCrawl-delay: 300\n"
+    const robots = """User-agent: *
+Disallow: /about.html
+Disallow: /api
+Disallow: /ci
+Disallow: /docs
+Disallow: /loader
+Disallow: /pkg
+Disallow: /search
+Disallow: /searchitem
+Crawl-delay: 300
+    """
+    resp(robots, contentType = "text/plain")
 
   include "templates/jsondoc_symbols.tmpl" # generate_jsondoc_symbols_page
   get "/searchitem":
