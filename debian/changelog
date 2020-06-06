@@ -1,3 +1,9 @@
+nim-package-directory (0.1.4) unstable; urgency=medium
+
+  * Update ping
+
+ -- Federico Ceratto <federico@debian.org>  Wed, 13 May 2020 00:51:58 +0100
+
 nim-package-directory (0.1.3) unstable; urgency=medium
 
   * Fix RSS

@@ -47,7 +47,7 @@ const
   github_packages_json_raw_url = "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json"
   github_packages_json_polling_time_s = 10 * 60
   git_bin_path = "/usr/bin/git"
-  sdnotify_ping_time_s = 1
+  sdnotify_ping_time_s = 10
   nim_bin_path = "/usr/bin/nim"
   nimble_bin_path = "/usr/bin/nimble"
   task_pubsub_port = 5583
@@ -480,23 +480,26 @@ proc run_process2(bin_path, desc, work_dir: string,
     case exit_code:
     of -1:
       # -1: still running, wait
-      # log_debug "waiting command thread $#..." % $pid
+      log_debug "waiting command thread $#..." % $pid
       await sleepAsync sleep_time_ms
       if sleep_time_ms < 1000:
         sleep_time_ms *= 2
 
     of 0:
+      log_debug "waitForExit 0"
       discard p.waitForExit()
       break
 
     else:
+      log_debug "waitForExit " & $exit_code
       discard p.waitForExit()
       break
 
   let elapsed = epochTime() - t0
 
   var output = ""
-  let new_output = p.outputStream().readAll()
+  let stdout_stream = p.outputStream()
+  let new_output = stdout_stream.readAll()
   output.add new_output
 
   for line in new_output.splitLines():
@@ -1730,6 +1733,7 @@ proc run_systemd_sdnotify_pinger(ping_time_s: int) {.async.} =
   while true:
     sd.ping_watchdog()
     await sleepAsync ping_time_s * 1000
+    echo "ping"
 
 
 proc run_github_packages_json_polling(poll_time_s: int) {.async.} =
