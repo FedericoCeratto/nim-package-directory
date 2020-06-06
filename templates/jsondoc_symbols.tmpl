@@ -2,13 +2,13 @@
 #proc generate_jsondoc_symbols_page(jd_symbols: PkgSymbols): string =
 #  result = ""
 
-<div class="columns">
-<div class="column col-12">
+<div class="container medium">
+<div class="twelve columns">
   <h4>${jd_symbols.len} entries found</h4>
 </div>
 
 #for pname, symbol in jd_symbols:
-  <div class="column col-12">
+  <div class="twelve columns">
     <div class="panel package">
       <div class="panel-header">
         <div class=""><code>${symbol.code}</code></div>

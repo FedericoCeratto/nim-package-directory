@@ -259,6 +259,7 @@ var volatile_cache_github_trending: seq[JsonNode] = @[]
 # HTML templates
 
 include "templates/base.tmpl"
+include "templates/empty.tmpl"
 include "templates/home.tmpl"
 include "templates/pkg.tmpl"
 include "templates/pkg_list.tmpl"
@@ -1302,9 +1303,9 @@ router mainRouter:
     if doc_path.endswith(".idx"):
       resp readFile(fn)
     else:
-      let head = """<h4>Doc files for <a href="/pkg/$#">$#</a></h4>""" % [pname, pname]
+      let head = """<h4>Return to <a href="/"> Nimble Directory</a></h4><h4>Doc files for <a href="/pkg/$#">$#</a></h4>""" % [pname, pname]
       let page = head & fn.readFile()
-      resp base_page(request, page)
+      resp empty_page(request, page)
 
   get "/loader":
     log_req request
