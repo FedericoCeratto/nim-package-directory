@@ -33,10 +33,10 @@ ${generate_search_box()}
     <div class="col pkg-cat">
       <h3> Trending packages</h3>
       <div class="twelve columns">
-        # for i in 0 .. min(9, len(github_trending))-1:
+        # for i in 0 .. min(8, len(github_trending))-1:
         # let pkg = github_trending[i]
         <a href="/pkg/${pkg["name"].str}">
-        <div id="showcase" class="four columns">
+        <div id="showcase" class="six columns">
           <h4>${pkg["name"].str}</h4>
           <p><span class="stars"><i class="fas fa-star"></i>${pkg["stargazers_count"].getInt}</span></p>
           <p><span class="author"> by <a href="${pkg["owner"]["html_url"].str}"">${pkg["owner"]["login"].str}</a></span></p>
@@ -54,7 +54,7 @@ ${generate_search_box()}
         <a href="/pkg/${p["name"].str}">
             <!-- TODO: Latest version -->
             <!-- <span class="version">v0.1.1</span> -->
-        <div id="showcase" class="four columns">
+        <div id="showcase" class="six columns">
           <h4>${p["name"].str}</h4>
           <p><span class="author">p["owner"]["login"].str</span>
           # if p.hasKey("web"):
@@ -91,7 +91,7 @@ ${generate_search_box()}
       <div class="twelve columns">
       # for p in most_queried_packages:
       <a href="/pkg/${p["name"].str}">
-      <div id="showcase" class="four columns">
+      <div id="showcase" class="six columns">
         <h4>${p["name"].str}</h4>
         <p><span class="author">
             <!-- TODO: Latest version -->

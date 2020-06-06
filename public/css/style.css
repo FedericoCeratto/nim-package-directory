@@ -211,13 +211,12 @@ ul {
 
 
 .pkg-cat h3 {
-  padding-left: .5em;
-  margin-bottom: 0;
+  margin-top: 1em;
   text-decoration: underline;
   text-align:center;
   font-weight:600;
   color:var(--black);
-  margin:.5em;
+  margin:0;
 }
 
 .showcase {
@@ -229,7 +228,6 @@ ul {
 .showcase h3 {
   font-weight:600;
   color:var(--black);
-  margin:.5em;
 }
 
 #showcase {
@@ -242,6 +240,8 @@ ul {
   cursor:pointer;
   height:125px;
 }
+
+
 
 #showcase:hover {
   box-shadow:0 1px 2px 0 rgba(0, 0, 0, .05)
@@ -281,12 +281,24 @@ ul {
 
 
 /* pkg page */
+.pkg-found {
+  margin:0;
+}
+
 .pkg-content {
   min-height:calc(100vh - var(--footer-height));
 }
 
 .pkg-info {
   padding-top:5em;
+}
+
+.pkg-info p {
+  margin-left:0;
+}
+
+.pkg-info span {
+  margin-left:0;
 }
 
 .pkg-title  {
@@ -453,9 +465,7 @@ blockquote *:last-of-type {
 }
 
 
-.pkg-found {
-  margin:0;
-}
+
 
 .columns {
   margin:.5em .3em 1em;
@@ -470,6 +480,26 @@ blockquote *:last-of-type {
 }
 
 
+
+@media (min-width: 550px) {
+  .container {
+    width: 90%;
+  }
+  
+}
+
+@media (min-width: 800px) {
+  .six.columns {
+    width: 48%;
+  }
+}
+
+@media (max-width: 800px) {
+  #showcase  {
+    width:100%;
+    margin:1em 0;
+  }
+}
 /* About Page */
 
 #about {
