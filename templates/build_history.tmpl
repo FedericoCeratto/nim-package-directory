@@ -1,5 +1,5 @@
 #? stdtmpl | standard
-#proc generate_build_history_page(build_history: Deque[BuildHistoryItem], current_builds: seq[string]): string =
+#proc generate_build_history_page(build_history: Deque[BuildHistoryItem], pkgs_waiting_build: HashSet[string], pkgs_building: HashSet[string]): string =
 #  const build_success_badge = slurp "success.svg"
 #  const build_fail_badge = slurp "fail.svg"
 #  const doc_success_badge = slurp "doc_success.svg"
@@ -7,6 +7,20 @@
 #  result = ""
 <div class="columns">
   <div class="column col-12">
+    <h4>Pending:</h4>
+    <table class="table table-striped table-hover">
+      <thead>
+        <tr>
+          <th>name</th>
+        </tr>
+      </thead>
+      <tbody>
+        # for pname in pkgs_waiting_build:
+        <tr><td><a href="/pkg/${pname}">${pname}</a></td></tr>
+        # end
+      <tbody>
+    </table>
+
     <h4>Running:</h4>
     <table class="table table-striped table-hover">
       <thead>
@@ -15,7 +29,7 @@
         </tr>
       </thead>
       <tbody>
-        # for pname in current_builds:
+        # for pname in pkgs_building:
         <tr><td><a href="/pkg/${pname}">${pname}</a></td></tr>
         # end
       <tbody>

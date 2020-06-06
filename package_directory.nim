@@ -13,6 +13,7 @@ import asyncdispatch,
  os,
  osproc,
  sequtils,
+ sets,
  streams,
  strutils,
  tables,
@@ -51,7 +52,7 @@ const
   nim_bin_path = "/usr/bin/nim"
   nimble_bin_path = "/usr/bin/nimble"
   task_pubsub_port = 5583
-  build_expiry_time = initTimeInterval(minutes = 15)
+  build_expiry_time = initTimeInterval(minutes = 240)  # TODO: check version/commitish instead
   cache_fn = ".cache.json"
 
   xml_no_cache_headers = {
@@ -104,7 +105,7 @@ type
   Pkg* = JsonNode
   Pkgs* = TableRef[string, Pkg]
   strSeq = seq[string]
-  BuildStatus {.pure.} = enum OK, Failed, Timeout, Running
+  BuildStatus {.pure.} = enum OK, Failed, Timeout, Running, Waiting
   DocBuildOutItem = object
     success_flag: bool
     filename, desc, output: string
@@ -112,7 +113,6 @@ type
   PkgDocMetadata = object of RootObj
     fnames: strSeq
     idx_fnames: strSeq
-    building: bool
     build_time: Time
     expire_time: Time
     last_commitish: string
@@ -141,6 +141,8 @@ type PkgsDocFilesTable = Table[string, PkgDocMetadata]
 # package name -> PkgDocMetadata
 # initialized by scan_pkgs_dir
 var pkgs_doc_files = newTable[string, PkgDocMetadata]()
+var pkgs_waiting_build = initHashSet[string]()
+var pkgs_building = initHashSet[string]()
 
 # tag -> package name
 # initialized/updated by load_packages
@@ -267,9 +269,11 @@ include "templates/build_output.tmpl"
 const
   build_success_badge = slurp "templates/success.svg"
   build_fail_badge = slurp "templates/fail.svg"
+  build_waiting_badge = slurp "templates/build_waiting.svg"
   build_running_badge = slurp "templates/build_running.svg"
   doc_success_badge = slurp "templates/doc_success.svg"
   doc_fail_badge = slurp "templates/doc_fail.svg"
+  doc_waiting_badge = slurp "templates/doc_waiting.svg"
   doc_running_badge = slurp "templates/doc_running.svg"
   version_badge_tpl = slurp template_path / "version-template-blue.svg"
 
@@ -661,7 +665,6 @@ proc github_trending_packages(request: Request, pkgs: Pkgs): Future[seq[
 #
 #   if commitish == pkgs_doc_files[pname].last_commitish:
 #     pkgs_doc_files[pname].expire_time = getTime() + build_expiry_time
-#     #pkgs_doc_files[pname].building = false # unlock
 #     log_debug "no changes to repo"
 #     return false
 #
@@ -870,15 +873,14 @@ proc generate_jsondoc(pname: string) {.async.} =
             getCurrentExceptionMsg()
 
 
-proc fetch_and_build_pkg_if_needed(pname: string, force_rebuild = false) {.async.} =
+proc fetch_and_build_pkg_if_needed_wrapped(pname: string, force_rebuild = false) {.async.} =
   ## Fetch package and build docs
   ## Modifies pkgs_doc_files
 
-  # PkgDocMetadata state machine: nothing -> building:true <-> building:false
   if pkgs_doc_files.hasKey(pname):
     # A build has been already done or is currently running.
 
-    if pkgs_doc_files[pname].building == true:
+    if pname in pkgs_waiting_build or pname in pkgs_building:
       # Build already running
       return
 
@@ -888,17 +890,34 @@ proc fetch_and_build_pkg_if_needed(pname: string, force_rebuild = false) {.async
 
   else:
     # The package has never been built before: create PkgDocMetadata
+    log_info "Starting FIRST build for " & pname
     let pm = PkgDocMetadata(
       fnames: @[],
       idx_fnames: @[],
     )
     pkgs_doc_files[pname] = pm
 
-  pkgs_doc_files[pname].building = true # lock
-  pkgs_doc_files[pname].build_time = getTime()
-  pkgs_doc_files[pname].expire_time = getTime() + build_expiry_time
+  # Wait for a slot before starting
+  pkgs_waiting_build.incl pname   # lock
+  pkgs_doc_files[pname].build_status = BuildStatus.Waiting
+  pkgs_doc_files[pname].doc_build_status = BuildStatus.Waiting
+  stats.gauge("pkgs_waiting_build_len", pkgs_waiting_build.len)
+
+  while pkgs_building.len >= 1:
+    log_debug "waiting for a build slot. Queue size: " & $pkgs_waiting_build.len
+    if pkgs_waiting_build.len < 10:
+      log_debug pkgs_waiting_build
+    stats.gauge("pkgs_waiting_build_len", pkgs_waiting_build.len)
+    await sleepAsync 1000
+
+  # Start build
+  pkgs_building.incl pname
+  pkgs_waiting_build.excl pname
   pkgs_doc_files[pname].build_status = BuildStatus.Running
   pkgs_doc_files[pname].doc_build_status = BuildStatus.Running
+  pkgs_doc_files[pname].build_time = getTime()
+  pkgs_doc_files[pname].expire_time = getTime() + build_expiry_time
+  stats.gauge("pkgs_waiting_build_len", pkgs_waiting_build.len)
 
   # Fetch or update pkg
   let url = pkgs[pname]["url"].str
@@ -909,11 +928,11 @@ proc fetch_and_build_pkg_if_needed(pname: string, force_rebuild = false) {.async
     let elapsed = epochTime() - t0
     stats.gauge("build_time", elapsed)
   except:
-    pkgs_doc_files[pname].building = false # unlock
+    pkgs_building.excl pname  # unlock
     raise
 
   if pkgs_doc_files[pname].build_status != BuildStatus.OK:
-    pkgs_doc_files[pname].building = false # unlock
+    pkgs_building.excl pname  # unlock
     log_debug "fetch_and_build_pkg_if_needed failed - skipping doc generation"
     stats.incr("build_failed")
     build_history.append(
@@ -934,7 +953,7 @@ proc fetch_and_build_pkg_if_needed(pname: string, force_rebuild = false) {.async
     let elapsed = epochTime() - t1
     stats.gauge("doc_build_time", elapsed)
   finally:
-    pkgs_doc_files[pname].building = false # unlock
+    pkgs_building.excl pname  # unlock
 
   build_history.append(
     pname,
@@ -965,9 +984,16 @@ proc fetch_and_build_pkg_if_needed(pname: string, force_rebuild = false) {.async
   except:
     log.error("JSON: created broken file: " & fn)
 
+proc fetch_and_build_pkg_if_needed(pname: string, force_rebuild = false) {.async.} =
+  try:
+    await fetch_and_build_pkg_if_needed_wrapped(pname, force_rebuild)
+  except:
+    log.error "build failed for " & pname & " " & getCurrentExceptionMsg()
+
+
 proc wait_build_completion(pname: string) {.async.} =
   let t0 = epochTime()
-  while pkgs_doc_files[pname].building == true:
+  while pname in pkgs_waiting_build or pname in pkgs_building:
     let elapsed = epochTime() - t0
     if elapsed > build_timeout_seconds:
       log_debug "wait timed out!"
@@ -1069,13 +1095,9 @@ router mainRouter:
     ## build history and status
     include "templates/build_history.tmpl"
     log_req request
-    var current_builds: seq[string] = @[]
-    for pname, pm in pkgs_doc_files.pairs():
-      if pm.building:
-        current_builds.add pname
 
     resp base_page(request, generate_build_history_page(build_history,
-        current_builds))
+        pkgs_waiting_build, pkgs_building))
 
   get "/pkg/@pkg_name/?":
     log_req request
@@ -1302,7 +1324,7 @@ router mainRouter:
     for item in cache.pkgs_history:
       let pn = item.name.normalize()
       if not pkgs.hasKey(pn):
-        log_debug "skipping $#" % pn
+        #log_debug "skipping $#" % pn
         continue
 
       let pkg = pkgs[pn]
@@ -1407,6 +1429,8 @@ router mainRouter:
         build_fail_badge
       of BuildStatus.Running:
         build_running_badge
+      of BuildStatus.Waiting:
+        build_waiting_badge
     resp(Http200, xml_no_cache_headers, badge)
 
   get "/ci/badges/@pkg_name/nimdevel/docstatus.svg":
@@ -1437,6 +1461,8 @@ router mainRouter:
         doc_fail_badge
       of BuildStatus.Timeout:
         doc_fail_badge
+      of BuildStatus.Waiting:
+        doc_waiting_badge
       of BuildStatus.Running:
         doc_running_badge
     resp(Http200, xml_no_cache_headers, badge)
@@ -1504,11 +1530,12 @@ router mainRouter:
     log_req request
     let pname = normalize(@"pkg_name")
     let status =
-      if pkgs_doc_files.hasKey(pname):
-        if pkgs_doc_files[pname].building:
-          "building"
-        else:
-          "done"
+      if pname in pkgs_waiting_build:
+        "waiting"
+      elif pname in pkgs_building:
+        "building"
+      elif pkgs_doc_files.hasKey(pname):
+        "done"
       else:
         "unknown"
 
@@ -1586,6 +1613,12 @@ Crawl-delay: 300
         @[]
     let body = generate_jsondoc_pkg_symbols_page(matches, url)
     resp body
+
+  error Http404:
+    resp Http404, "Looks you took a wrong turn somewhere."
+
+  error Exception:
+    resp Http500, "Something bad happened: " & exception.msg
 
 
 proc cleanupWhitespace(s: string): string =
@@ -1730,10 +1763,14 @@ proc run_systemd_sdnotify_pinger(ping_time_s: int) {.async.} =
   let sd = newSDNotify()
   sd.notify_ready()
   sd.notify_main_pid(getpid())
+  var t = epochTime()
   while true:
     sd.ping_watchdog()
-    await sleepAsync ping_time_s * 1000
+    stats.gauge("build_time", epochTime() - t)
     echo "ping"
+    t = epochTime()
+
+    await sleepAsync ping_time_s * 1000
 
 
 proc run_github_packages_json_polling(poll_time_s: int) {.async.} =
