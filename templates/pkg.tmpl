@@ -7,40 +7,22 @@
 <div class="pkg-content">
   <div class="pkg-info">
     <div class="container medium">
-      <h2 class="pkg-title">${pname}</h2>
+      <p class="pkg-title">${pname}</p>
       <!-- <p><span><i class="fas fa-star" style="color:#f7e942"></i>8,263</span></p> -->
-      <p>
+      <p class="tags">
       #for tag in pkg["tags"]:
       <span class="tag">
-        <a href="/search?query=$tag.str">
+        <a href="/search?query=$tag.str"><button class="btn-tag pkg-btn-tag">
         $tag.str
-        </a>
+        </button></a>
       </span>
       #end for
       </p>
-      <p class="pkg-desc">${pkg["description"].str}</p>
+      <p class="pkg-desc">${pkg["description"].str}
       #if pkg.has_key("github_owner"):
-        <p class="pkg-author">Author:  <a href="https://github.com/${pkg["github_owner"].str}">${pkg["github_owner"].str}</a></p>
+        by:  <a href="https://github.com/${pkg["github_owner"].str}">${pkg["github_owner"].str}</a>
        #end
-      <a title="Copy" onclick="document.querySelector('#cmd').select();document.execCommand('copy');" alt="Copy on clipboard">
-        <i class="fa fa-copy"></i></a> <input id="cmd" onclick="this.select();" value="nimble install ${pname}" readonly="">
-        <p><small>Need help? Read <a href="https://github.com/nim-lang/nimble#creating-packages">Nimble</a></small></p>
-  
-      #if pkg.has_key("github_versions"):
-          #if pkg["github_versions"].getElems().len > 0:
-          <p>Available versions: 
-          #  for semver in pkg["github_versions"].getElems():
-              <span class="tag">${semver.str}</span>
-          #  end
-          </p>
-            <br>
-          #else:
-          <p><strong>No tagged versions available </strong></p>
-          #end
-
-      #end
-
-        <p>License:
+       under 
     #     let licns = pkg["license"].str.toLowerAscii.strip
     #     if licns == "mit":
             <a href="https://opensource.org/licenses/MIT">MIT</a>
@@ -73,6 +55,26 @@
     #     else:
             ${pkg["license"].str}
     #     end
+       License.
+      </p>
+      <a title="Copy" onclick="document.querySelector('#cmd').select();document.execCommand('copy');" alt="Copy on clipboard">
+        <i class="fa fa-copy"></i></a> <input id="cmd" onclick="this.select();" value="nimble install ${pname}" readonly="">
+        <p><small>Need help? Read <a href="https://github.com/nim-lang/nimble#creating-packages">Nimble</a></small></p>
+  
+      #if pkg.has_key("github_versions"):
+          #if pkg["github_versions"].getElems().len > 0:
+          <p>Available versions: 
+          #  for semver in pkg["github_versions"].getElems():
+              <span class="vers">${semver.str}</span>
+          #  end
+          </p>
+          #else:
+          <p><strong>No tagged versions available </strong></p>
+          #end
+
+      #end
+
+        <p>
           </p>
 
         <p>
@@ -89,18 +91,18 @@
 
       <p class="build-info" id="last_build_time"></p>
       
-      <button class="pkg-btn" id="rebuildbtn">Rebuild now</button>
+      <button class="btn pkg-btn" id="rebuildbtn">Rebuild now</button>
       #if pkg.has_key("web"):
-        <button class="pkg-btn"><a href="${pkg["web"].str}" >Project website</a></button> 
+        <a href="${pkg["web"].str}" ><button class="btn pkg-btn">Project website</button></a> 
       #end
       #if pkg.has_key("doc"):
-        <button class="pkg-btn"><a href="${pkg["doc"].str}"> Docs</a></button>
+        <a href="${pkg["doc"].str}"><button class="btn pkg-btn"> Docs</button></a>
       #end if
       #let url = pkg["url"].str
       #if url.startswith("https://github.com/") or url.startswith("http://github.com/") or url.startswith("git"):
-        <button class="pkg-btn"><a href="/docs/${pname}"> Hosted docs</a></button>
+        <a href="/docs/${pname}"><button class="btn pkg-btn">Hosted docs</button></a>
       #end if
-      <br>
+    
       <form action="/searchitem_pkg" method="GET" role="search" class="input-group" id="searchitem">
         <input id="search-pkg" name="query" type="search"  placeholder="Search Symbols in ${pname}" value="" minlength="1" autofocus required>
         <input name="pkg_name" type="hidden" value="${pname}">
