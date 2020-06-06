@@ -386,7 +386,7 @@ hr {
   color:var(--white);
 }
 
-.btn {
+.btn, #rebuildbtn {
   box-sizing: border-box;
   -webkit-appearance: none;
      -moz-appearance: none;
@@ -396,7 +396,6 @@ hr {
   border-radius: 0.6em;
   color: #e74c3c;
   cursor: pointer;
-
   align-self: center;
   font-size: 1.2rem;
   font-weight: 500;
@@ -412,9 +411,10 @@ hr {
   -webkit-transition: box-shadow 300ms ease-in-out, color 300ms ease-in-out;
   transition: box-shadow 300ms ease-in-out, color 300ms ease-in-out;
 }
-.pkg-btn:hover {
+.pkg-btn:hover{
   box-shadow: 0 0 40px 40px #e74c3c inset;
   border:none;
+  color:var(--white);
 }
 
 .pkg-btn a {
@@ -423,6 +423,10 @@ hr {
 }
 
 .pkg-btn a:hover {
+  color:var(--white);
+}
+
+#rebuildbtn:hover {
   color:var(--white);
 }
 
@@ -511,7 +515,7 @@ blockquote *:last-of-type {
 
 .pkg-info h1, h2, h3, h4, h5, h6 {
   color:var(--black);
-  font-weight:400;
+  font-weight:500;
 }
 
 /* Docs List */
@@ -598,24 +602,3 @@ blockquote *:last-of-type {
 .footer p {
   margin:0;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
