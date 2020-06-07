@@ -330,14 +330,15 @@ hr {
 
 .vers {
   margin: .3em;
-  padding: .1em .15em;
-  font-size: 1em;
+  padding: .2em .3em;
+  font-size: .8em;
   text-align: center;
   display: inline-block;
-  border-radius: .6em;
-  border: 2px solid #b1b8b4;
-  color:#b1b8b4;
-  font-weight: 500;
+  border: 1px solid #b1b8b4;
+  font-weight: 600;
+  background-color: #f2f2f2;
+  color: #4b4b4b;
+  border-radius: 3px;
 }
 
 .pkg-desc {
