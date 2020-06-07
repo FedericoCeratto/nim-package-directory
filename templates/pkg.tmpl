@@ -33,12 +33,12 @@
 
     <div class="three columns" id="meta-section">
         #if pkg.has_key("github_owner"):
-          <p class="pkg-author">Author: <a href="https://github.com/${pkg["github_owner"].str}">${pkg["github_owner"].str}</a></p>
+          <p class="pkg-author"><strong>Author:</strong> <a href="https://github.com/${pkg["github_owner"].str}">${pkg["github_owner"].str}</a></p>
         #end
        
        #if pkg.has_key("github_versions"):
           #if pkg["github_versions"].getElems().len > 0:
-          <p>Available versions: 
+          <p><strong>Available versions:</strong>
           #  for semver in pkg["github_versions"].getElems():
               <span class="vers">${semver.str}</span>
           #  end
@@ -48,7 +48,7 @@
           #end
       #end
   
-        <p class="pkg-desc">
+        <p>
       
        <strong>Licence:</strong>
     #     let licns = pkg["license"].str.toLowerAscii.strip

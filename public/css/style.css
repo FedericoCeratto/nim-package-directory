@@ -385,8 +385,8 @@ hr {
 
 
 .pkg-btn-tag:hover {
-  box-shadow: 0 0 40px 40px #62a548 inset;
-  border:none;
+  background-color: #62a548 ;
+  border: 2px solid #62a548;
 }
 
 .pkg-btn-tag a {
@@ -421,12 +421,12 @@ hr {
 
 
 .pkg-btn, .pkg-btn-tag {
-  -webkit-transition: box-shadow 300ms ease-in-out, color 300ms ease-in-out;
-  transition: box-shadow 300ms ease-in-out, color 300ms ease-in-out;
+  -webkit-transition: box-shadow 150ms ease-in-out, color 150ms ease-in-out;
+  transition: box-shadow 150ms ease-in-out, color 150ms ease-in-out;
 }
-.pkg-btn:hover{
-  box-shadow: 0 0 40px 40px #e74c3c inset;
-  border:none;
+.pkg-btn:hover, #rebuildbtn:hover{
+  background-color: #e74c3c ;
+  border: 2px solid #e74c3c;
   color:var(--white);
 }
 
@@ -438,11 +438,6 @@ hr {
 .pkg-btn a:hover {
   color:var(--white);
 }
-
-#rebuildbtn:hover {
-  color:var(--white);
-}
-
 
 #searchbox-pkg{
   max-width:90%;
@@ -481,7 +476,7 @@ img.slickbadge {
 }
 
 #readme-section {
-  padding:0 .2em 0 0;
+  padding:0 .4em 0 0;
   margin:0 !important;
   border-right:1px solid #e5e7eb;
 }
