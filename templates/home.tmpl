@@ -56,10 +56,9 @@ ${generate_search_box()}
             <!-- <span class="version">v0.1.1</span> -->
         <div id="showcase" class="six columns">
           <h4>${p["name"].str}</h4>
-          <p><span class="author">p["owner"]["login"].str</span>
           # if p.hasKey("web"):
           <a href="${p["web"].str}">
-            - Visit website
+            Visit website
           </a>
           # end
         </p>
