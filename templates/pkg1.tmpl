@@ -4,11 +4,12 @@
 
 # let pname = pkg["name"].str
 
-
-
-<div class="container large" id="pkg-info">
-    <h3 class="pkg-title">${pname}</h3>
-    <p class="tags">
+<div class="pkg-content">
+  <div class="pkg-view">
+    <div class="container medium">
+      <p class="pkg-title">${pname}</p>
+      <!-- <p><span><i class="fas fa-star" style="color:#f7e942"></i>8,263</span></p> -->
+      <p class="tags">
       #for tag in pkg["tags"]:
       <span class="tag">
         <a href="/search?query=$tag.str"><button class="btn-tag pkg-btn-tag">
@@ -17,40 +18,11 @@
       </span>
       #end for
       </p>
-    <p class="pkg-desc">${pkg["description"].str}</p>
-    <a title="Copy" onclick="document.querySelector('#cmd').select();document.execCommand('copy');" alt="Copy on clipboard">
-    <i class="fa fa-copy"></i></a> <input id="cmd" onclick="this.select();" value="nimble install ${pname}" readonly="">
-    <p><small>Need help? Read <a href="https://github.com/nim-lang/nimble#creating-packages">Nimble</a></small></p>
-
-
-
-  <div class="twelve columns" id="pkg-content">
-    <div class="nine columns" id="readme-section">
-      #if pkg.has_key("github_readme"):
-        ${pkg["github_readme"].str}
-      #end
-    </div>
-
-    <div class="three columns" id="meta-section">
-        #if pkg.has_key("github_owner"):
-          <p class="pkg-author">Author: <a href="https://github.com/${pkg["github_owner"].str}">${pkg["github_owner"].str}</a></p>
-        #end
-       
-       #if pkg.has_key("github_versions"):
-          #if pkg["github_versions"].getElems().len > 0:
-          <p>Available versions: 
-          #  for semver in pkg["github_versions"].getElems():
-              <span class="vers">${semver.str}</span>
-          #  end
-          </p>
-          #else:
-          <p><strong>No tagged versions available </strong></p>
-          #end
-      #end
-  
-        <p class="pkg-desc">
-      
-       <strong>Licence:</strong>
+      <p class="pkg-desc">${pkg["description"].str}
+      #if pkg.has_key("github_owner"):
+        by:  <a href="https://github.com/${pkg["github_owner"].str}">${pkg["github_owner"].str}</a>
+       #end
+       under 
     #     let licns = pkg["license"].str.toLowerAscii.strip
     #     if licns == "mit":
             <a href="https://opensource.org/licenses/MIT">MIT</a>
@@ -83,8 +55,28 @@
     #     else:
             ${pkg["license"].str}
     #     end
-
+       License.
       </p>
+      <a title="Copy" onclick="document.querySelector('#cmd').select();document.execCommand('copy');" alt="Copy on clipboard">
+        <i class="fa fa-copy"></i></a> <input id="cmd" onclick="this.select();" value="nimble install ${pname}" readonly="">
+        <p><small>Need help? Read <a href="https://github.com/nim-lang/nimble#creating-packages">Nimble</a></small></p>
+  
+      #if pkg.has_key("github_versions"):
+          #if pkg["github_versions"].getElems().len > 0:
+          <p>Available versions: 
+          #  for semver in pkg["github_versions"].getElems():
+              <span class="vers">${semver.str}</span>
+          #  end
+          </p>
+          #else:
+          <p><strong>No tagged versions available </strong></p>
+          #end
+
+      #end
+
+        <p>
+          </p>
+
         <p>
           <a href="/ci/badges/${pname}/nimdevel/output.html">
             <img class="slickbadge" id="versionbadge">
@@ -96,32 +88,44 @@
             <img class="slickbadge" id="docstatusbadge">
           </a>
         </p>
-        
-        
-        <p class="build-info" id="last_build_time"></p>
-        <button class="btn pkg-btn" id="rebuildbtn">Rebuild now</button>
-        #if pkg.has_key("web"):
-          <a href="${pkg["web"].str}" ><button class="btn pkg-btn">Project website</button></a> 
-        #end
-        #if pkg.has_key("doc"):
-          <a href="${pkg["doc"].str}"><button class="btn pkg-btn"> Docs</button></a>
-        #end if
-        #let url = pkg["url"].str
-        #if url.startswith("https://github.com/") or url.startswith("http://github.com/") or url.startswith("git"):
-          <a href="/docs/${pname}"><button class="btn pkg-btn">Hosted docs</button></a>
-        #end if
+
+      <p class="build-info" id="last_build_time"></p>
+      
+      <button class="btn pkg-btn" id="rebuildbtn">Rebuild now</button>
+      #if pkg.has_key("web"):
+        <a href="${pkg["web"].str}" ><button class="btn pkg-btn">Project website</button></a> 
+      #end
+      #if pkg.has_key("doc"):
+        <a href="${pkg["doc"].str}"><button class="btn pkg-btn"> Docs</button></a>
+      #end if
+      #let url = pkg["url"].str
+      #if url.startswith("https://github.com/") or url.startswith("http://github.com/") or url.startswith("git"):
+        <a href="/docs/${pname}"><button class="btn pkg-btn">Hosted docs</button></a>
+      #end if
     
-        <form action="/searchitem_pkg" method="GET" role="search" class="input-group" id="searchitem">
-          <input id="search-pkg" name="query" type="search"  placeholder="Search Symbols in ${pname}" value="" minlength="1" autofocus required>
-          <input name="pkg_name" type="hidden" value="${pname}">
-        </form>
-        <div class="search-content">
-            <div id="searchitem_result"></div>
-        </div>
+      <form action="/searchitem_pkg" method="GET" role="search" class="input-group" id="searchitem">
+        <input id="search-pkg" name="query" type="search"  placeholder="Search Symbols in ${pname}" value="" minlength="1" autofocus required>
+        <input name="pkg_name" type="hidden" value="${pname}">
+      </form>
+      
+            
+      <div class="search-content">
+        <div id="searchitem_result">
+      </div>
+      </div>
     </div>
   </div>
+  <hr>
+
+
+#if pkg.has_key("github_readme"):
+<div class="readme-section">
+    <div class="container medium">
+      ${pkg["github_readme"].str}
+    </div>
 </div>
-      <script>
+#end
+       <script>
           function reload_badges() {
             $$("#versionbadge").attr("src", "/ci/badges/${pname}/version.svg");
             $$("#statusbadge").attr("src", "/ci/badges/${pname}/nimdevel/status.svg");
