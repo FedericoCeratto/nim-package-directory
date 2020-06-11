@@ -1,16 +1,14 @@
 #? stdtmpl | standard
 #proc generate_search_box(value=""): string =
 #  result = ""
-<div class="columns">
-  <div class="column col-12 search-box">
-    <form action="/search" method="GET" role="search" class="input-group">
-      <input class="form-input" name="query" placeholder="Search Nimble packages" type="search" value="$value" minlength="1" autofocus required >
-      <button type="submit" class="btn btn-primary input-group-btn">
-        <i class="fa fa-search"></i> Search
-      </button>
+<header class="hero">
+    <h1>Nimble Directory</h1>
+    <h5 style="text-align: center;">An Index of Nim Packages</h5>
+     <form method="GET" action="/search" id="searchbox">
+        <input id="search" name="query" type="text"  placeholder="Search Package" type="search" value="$value" minlength="1" autofocus required/>
     </form>
-  </div>
-</div>
+</header>
+
 #end
 #
 #proc generate_home_page(most_queried_packages, new_packages: seq[Pkg], github_trending: seq[JsonNode]): string =
@@ -18,78 +16,56 @@
 
 ${generate_search_box()}
 
-<div class="columns">
-  <div class="column col-12">
-    <p><b>Developer?</b> Search for packages or jump directly to a package page.
+
+
+  <div class="upper">
+    <div class="container">
+    <div id="welcome" class="twelve column">
+      <h3> Welcome to Nimble Directory</h3>
+    <p class="w-message"><span>Developer?</span> Search for packages or jump directly to a package page.
     Nim Package Directory generates and hosts documentation for packages.</p>
-    <p><b>Package maintainer?</b> <a href="/about.html">Learn</a> what this service can do for you.</p>
+    <p class="w-message"><span>Package maintainer?</span> <a href="/about.html">Learn</a> what this service can do for you.</p>
+    </div>
+    </div>
   </div>
-</div>
-<h4><i class="fa fa-github"></i>Trending on GitHub</h4>
-<div class="columns">
-    # for i in 0 .. min(8, len(github_trending))-1:
-    # let pkg = github_trending[i]
-    <div class="column col-6">
-      <div class="panel package">
-        <div class="panel-header">
-          <div class="panel-title">
-            <a href="/pkg/${pkg["name"].str}">${pkg["name"].str}</a>
-            <!-- TODO: Latest version -->
-            <!-- <span class="version">v0.1.1</span> -->
-          </div>
-          <div class="package-description">
-            <!-- TODO: Description -->
-          </div>
+
+<div class="container showcase">
+    <div class="col pkg-cat">
+      <h3> Trending packages</h3>
+      <div class="twelve columns">
+        # for i in 0 .. min(8, len(github_trending))-1:
+        # let pkg = github_trending[i]
+        <a href="/pkg/${pkg["name"].str}">
+        <div id="showcase" class="six columns">
+          <h4>${pkg["name"].str}</h4>
+          <p><span class="stars"><i class="fas fa-star"></i>${pkg["stargazers_count"].getInt}</span></p>
+          <p><span class="author"> by <a href="${pkg["owner"]["html_url"].str}"">${pkg["owner"]["login"].str}</a></span></p>
+          <!-- <p class="desc">Updated: ${pkg["update_age"].str}</p> -->
         </div>
-        <div class="panel-body">
-          <figure class="avatar avatar-xs person" data-initial="DP">
-            <img src="${pkg["owner"]["avatar_url"].str}" />
-          </figure>
-          <a class="username"
-             href="${pkg["owner"]["html_url"].str}">
-             ${pkg["owner"]["login"].str}
-          </a>
-          <span class="stargazers">
-            <i class="fa fa-star" title="Stargazers"></i>
-            ${pkg["stargazers_count"].getInt}
-          </span>
-          <span class="stargazers">
-            <i class="fa fa-clock-o" title="Last updated"></i>
-            ${pkg["update_age"].str}
-          </span>
-        </div>
-        <div class="panel-footer">
-          <a class="btn input-group-btn" href="${pkg["html_url"].str}">
-            <i class="fa fa-globe"></i> Project website
-          </a>
-        </div>
+        </a>
+        # end
       </div>
     </div>
-    # end
-</div>
 
-
-<h4><i class="fa fa-fire"></i>New packages</h4>
-<div class="columns">
-    # for p in new_packages:
-    <div class="column col-6">
-      <div class="panel package">
-        <div class="panel-header">
-          <div class="panel-title">
-            <a href="/pkg/${p["name"].str}">${p["name"].str}</a>
+    <div class="col pkg-cat">
+      <h3> New packages</h3>
+      <div class="twelve columns">
+        # for p in new_packages:
+        <a href="/pkg/${p["name"].str}">
             <!-- TODO: Latest version -->
             <!-- <span class="version">v0.1.1</span> -->
-          </div>
-          <div class="package-description">
-            <p>${p["description"].str}</p>
-          </div>
+        <div id="showcase" class="six columns">
+          <h4>${p["name"].str}</h4>
           # if p.hasKey("web"):
-          <a class="btn input-group-btn" href="${p["web"].str}">
-            <i class="fa fa-globe"></i> Project website
+          <a href="${p["web"].str}">
+            Visit website
           </a>
           # end
+        </p>
+          <p class="desc">${p["description"].str}</p>
         </div>
-        <div class="panel-body">
+        </a>
+   
           <!-- TODO: The info below -->
           <!-- <figure class="avatar avatar-xs person" data-initial="DP">
             <img src="img/avatar-1.png" />
@@ -97,8 +73,7 @@ ${generate_search_box()}
           <span class="username">dom96</span>
           <span class="stargazers"><i class="fa fa-star" title="Stargazers"></i>456</span>
           <span class="stargazers"><i class="fa fa-clock-o" title="Last updated"></i>2 minutes ago</span> -->
-        </div>
-        <div class="panel-footer">
+
           <!-- TODO: Links for these buttons. -->
           <!-- <a class="btn input-group-btn">
             <i class="fa fa-github"></i> Repo
@@ -106,33 +81,30 @@ ${generate_search_box()}
           <a class="btn input-group-btn">
             <i class="fa fa-book"></i> Docs
           </a> -->
-        </div>
+        # end
       </div>
     </div>
-    # end
-</div>
 
-<h4><i class="fa fa-fire"></i>Most queried</h4>
-<div class="columns">
-    # for p in most_queried_packages:
-    <div class="column col-6">
-      <div class="panel package">
-        <div class="panel-header">
-          <div class="panel-title">
-            <a href="/pkg/${p["name"].str}">${p["name"].str}</a>
+    <div class="col pkg-cat">    
+      <h3>Most queried</h3>
+      <div class="twelve columns">
+      # for p in most_queried_packages:
+      <a href="/pkg/${p["name"].str}">
+      <div id="showcase" class="six columns">
+        <h4>${p["name"].str}</h4>
+        <p><span class="author">
             <!-- TODO: Latest version -->
             <!-- <span class="version">v0.1.1</span> -->
-          </div>
-          <div class="package-description">
-            <p>${p["description"].str}</p>
-          </div>
-          # if p.hasKey("web"):
-          <a class="btn input-group-btn" href="${p["web"].str}">
-            <i class="fa fa-globe"></i> Project website
+        # if p.hasKey("web"):
+          <a href="${p["web"].str}">
+           Project website
           </a>
-          #end
-        </div>
-        <div class="panel-body">
+        #end
+        </span></p>
+        <p class="desc">${p["description"].str}</p>
+      </div>
+      </a>
+  
           <!-- TODO: The info below -->
           <!-- <figure class="avatar avatar-xs person" data-initial="DP">
             <img src="img/avatar-1.png" />
@@ -140,8 +112,8 @@ ${generate_search_box()}
           <span class="username">dom96</span>
           <span class="stargazers"><i class="fa fa-star" title="Stargazers"></i>456</span>
           <span class="stargazers"><i class="fa fa-clock-o" title="Last updated"></i>2 minutes ago</span> -->
-        </div>
-        <div class="panel-footer">
+   
+  
           <!-- TODO: Links for these buttons. -->
           <!-- <a class="btn input-group-btn">
             <i class="fa fa-github"></i> Repo
@@ -149,10 +121,10 @@ ${generate_search_box()}
           <a class="btn input-group-btn">
             <i class="fa fa-book"></i> Docs
           </a> -->
-        </div>
-      </div>
+   
+      # end
     </div>
-    # end
 </div>
+
 
 <!-- TODO: Recently updated -->

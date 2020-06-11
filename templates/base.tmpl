@@ -9,42 +9,48 @@
   <meta charset="utf-8">
   <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link href="//fonts.googleapis.com/css?family=Raleway:400,300,600" rel="stylesheet" type="text/css">
-
+  <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@300;400&family=Roboto:wght@100;300;400;500;700&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/png"  href="images/favicon.png">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/thebigbaron/lime@v1.0.0/dist/lime/lime.min.css">
   <link rel="stylesheet" href="${req.makeUri("css/style.css", false)}">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/spectre.css/0.4.7/spectre.min.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
   <link rel="search" type="application/opensearchdescription+xml" title="Nimble" href="https://nimble.directory/search.xml">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@10.0.3/build/styles/an-old-hope.min.css">
+  <script src="https://kit.fontawesome.com/a30ba13df5.js" crossorigin="anonymous"></script>
   <script src="https://code.jquery.com/jquery-3.3.1.min.js" integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8=" crossorigin="anonymous"></script>
+  <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@10.0.3/build/highlight.min.js"></script>
+  <script>hljs.initHighlightingOnLoad();</script>
 </head>
 <body>
-  <section class="section section-header bg-gray">
-    <section class="grid-header container grid-960">
-      <header class="navbar">
-        <section class="navbar-section">
-          <a href="/" class="navbar-logo">
-            <img id="boxlogo" src="${req.makeUri("img/nimble_logo.svg", false)}"></img>
-          </a>
-          <a href="/" class="navbar-brand mr-10">Nim Package Directory</a>
-        </section>
-        <section class="navbar-center">
+  <div class="nav">
+    <a href="/" class="logo"><img src="${req.makeUri("img/nimble-logo.png", false)}"></a>
+  <div class="nav-btn">
+    <label for="nav-check">
+      <span></span>
+      <span></span>
+      <span></span>
+    </label>
+  </div>
+  <input type="checkbox" id="nav-check">
+  <div class="nav-links">
+    <a href="/packages.xml"><i class="fas fa-rss-square" style="color:orange"></i> New Packages</a>
+    <a href="/about.html">About</a>
+    <a href="/search">Browse Packages</a>
+    <a href="https://nim-lang.org">Nim-lang</a>
+  </div>
+</div>
 
-        </section>
-        <section class="navbar-section">
-          <a href="/packages.xml" class="btn btn-link">
-            <img src="/img/feed-icon-14x14.png">
-            New packages
-          </a>
-          <a href="/about.html" class="btn btn-link">About</a>
-          <a href="https://nim-lang.org/" class="btn btn-link">Nim-lang</a>
-        </section>
-      </header>
-    </section>
-  </section>
-
-  <div class="container grid-960">
+  <div class="content">
     ${content}
   </div>
 
+<footer class="footer">
+  <p>Created by <a href="https://github.com/FedericoCeratto">Federico Ceratto</a></p>
+  <p>Copyright &copy; 2020.</p>
+</footer>
+<script>
+  $$(document).ready(function(){
+    $$(this).scrollTop(0);
+  });
+</script>
 </body>
 </html>

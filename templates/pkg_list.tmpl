@@ -2,45 +2,35 @@
 #proc generate_pkg_list_page(pkgs: seq[Pkg]): string =
 #  result = ""
 
-<div class="columns">
-<div class="column col-12">
-	<h4>${pkgs.len} packages found</h4>
-</div>
+<div class="container search-index">
+
+<h4 class="pkg-found"><strong>${pkgs.len}</strong> <span>Package(s) Found</span></h4>
+<div class="twelve columns">
 
 #for pkg in pkgs:
-	<div class="column col-6">
-		<div class="panel package">
-			<div class="panel-header">
-				<div class="panel-title">
-					<a href="/pkg/${pkg["name"].str}">${pkg["name"].str}</a>
-					<!-- TODO: Version info for latest version -->
-					<!-- <span class="version">v0.1.1</span> -->
-				</div>
-				<div class="package-description">${pkg["description"].str}</div>
-			</div>
-			<!-- TODO: Username, avatar, stargazers count, last update -->
-			<!-- <div class="panel-body">
+    <a href="/pkg/${pkg["name"].str}">
+        <div id="showcase" class="six columns">
+          <h4>${pkg["name"].str}</h4>
+          <p><span class="author"><a href="${pkg["url"].str}"> Visit Repo</span>
 
-				<figure class="avatar avatar-xs person" data-initial="DP">
-					<img src="img/avatar-1.png" />
-				</figure>
-				<span class="username">dom96</span>
-				<span class="stargazers"><i class="fa fa-star" title="Stargazers"></i>456</span>
-				<span class="stargazers"><i class="fa fa-clock-o" title="Last updated"></i>2 minutes ago</span>
-			</div> -->
-			<div class="panel-footer">
-				<a href="${pkg["url"].str}" class="btn input-group-btn">
-					<i class="fa fa-github"></i> Repo
-				</a>
-				<!-- <a class="btn input-group-btn">
-					<i class="fa fa-book"></i> Docs
-				</a> -->
+          
+          
+				
 #if pkg.has_key("web") and pkg["web"].str != pkg["url"].str:
-				<a href="${pkg["web"].str}" class="btn input-group-btn">
-					<i class="fa fa-globe"></i> Project Website
+				<a href="${pkg["web"].str}" >
+					- Project Website
 				</a>
 #end if
-			</div>
-		</div>
-	</div>
+        </p>
+        <p class="desc">${pkg["description"].str}</p>
+	    </div>
+    </a>
 #end for
+		
+</div>
+</div>
+
+
+
+  
+      
