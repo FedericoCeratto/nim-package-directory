@@ -2,8 +2,7 @@
 #proc generate_search_box(value=""): string =
 #  result = ""
 <header class="hero">
-    <h1>Nimble Directory</h1>
-    <h5 style="text-align: center;">An Index of Nim Packages</h5>
+    <h4 style="text-align: center;">Nim package directory</h4>
      <form method="GET" action="/search" id="searchbox">
         <input id="search" name="query" type="text"  placeholder="Search Package" type="search" value="$value" minlength="1" autofocus required/>
     </form>
@@ -21,7 +20,6 @@ ${generate_search_box()}
   <div class="upper">
     <div class="container">
     <div id="welcome" class="twelve column">
-      <h3> Welcome to Nimble Directory</h3>
     <p class="w-message"><span>Developer?</span> Search for packages or jump directly to a package page.
     Nim Package Directory generates and hosts documentation for packages.</p>
     <p class="w-message"><span>Package maintainer?</span> <a href="/about.html">Learn</a> what this service can do for you.</p>
