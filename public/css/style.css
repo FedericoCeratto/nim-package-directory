@@ -1,14 +1,23 @@
 /* Variables */
 
+
 :root {
-    --footer-height: 100px;
-    --black: #000000;
-    --white: #FFFFFF;
+    --footer-height: 4em;
+    --col-dark: #000000;
+    --col-light: #FFFFFF;
+    --col-dyn-dark: #000000;
+    --col-dyn-light: #FFFFFF;
+}
+
+.dark-mode {
+    --col-dyn-dark: #FFFFFF;
+    --col-dyn-light: #000000;
 }
 
 /* Basic */
 body {
   font-family: 'Roboto', sans-serif;
+  background-color: var(--col-dyn-light);
 }
 
 a {
@@ -82,7 +91,7 @@ hr {
   display: inline-block;
   padding: 1.8rem 1rem;
   text-decoration: none;
-  color: var(--white);
+  color: var(--col-light);
   cursor:pointer;
 }
 
@@ -153,16 +162,16 @@ hr {
 /* Hero Section */
 
 .hero {
-  background-color:#f9fafb;
+  background-color: var(--col-dyn-light);
   text-align: center;
-  color:var(--black);
+  color:var(--col-dyn-dark);
   padding-top:6em;
   font-weight: 300;
   border-bottom:1px solid #e5e7eb;
 }
 
 .hero h1 {
-  color:var(--black);
+  color:var(--col-dyn-dark);
   font-weight: bold;
   letter-spacing: 2px;
 }
@@ -199,7 +208,7 @@ hr {
 /* Upper */
 
 .upper {
-  color:var(--black);
+  color:var(--col-dark);
   width:100%;
   text-align:center;
   border-bottom:1px solid #e5e7eb;
@@ -207,7 +216,7 @@ hr {
 
 #welcome {
   padding-top:1em;
-
+  color:var(--col-dyn-dark);
 }
 
 #welcome h3{
@@ -222,7 +231,7 @@ hr {
   margin-top: 1em;
   text-align:center;
   font-weight: 300;
-  color:var(--black);
+  color:var(--col-dyn-dark);
   margin:0;
 }
 
@@ -233,7 +242,7 @@ hr {
 
 
 .showcase h3 {
-  color:var(--black);
+  color:var(--col-dyn-dark);
 }
 
 #showcase {
@@ -254,12 +263,12 @@ hr {
 }
 
 .showcase span {
-  color:var(--black);
+  color:var(--col-dyn-dark);
 }
 
 #showcase h4 {
   margin:0;
-  color:var(--black);
+  color:var(--col-dyn-dark);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -270,13 +279,14 @@ hr {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  color:var(--col-dyn-dark);
 }
 
 .author {
   font-style:italic;
 }
 .desc {
-  color:var(--black);
+  color:var(--col-dyn-dark);
 }
 .fa-star {
   color:#dcd364;
@@ -304,6 +314,7 @@ hr {
 
 #pkg-info p, .pkg-view p {
   margin-left:0;
+  color:var(--col-dyn-dark);
 }
 
 #pkg-info span, .pkg-view span {
@@ -315,7 +326,7 @@ hr {
 }
 
 .pkg-title  {
-  color:var(--black);
+  color:var(--col-dyn-dark);
   font-weight: 300;
   font-size:2.5em;
   margin:0;
@@ -355,6 +366,12 @@ hr {
   font-weight:bold;
 }
 
+button#darkmode {
+  background: var(--col-light);
+  font-style: normal;
+  font-size: small;
+  margin-top: 6px;
+}
 
 .btn-tag {
   box-sizing: border-box;
@@ -377,10 +394,9 @@ hr {
 }
 
 .btn:hover, .btn:focus, .btn-tag:hover, .btn-tag:focus {
-  color: var(--white);
+  color: var(--col-light);
   outline: 0;
 }
-
 
 .pkg-btn-tag:hover {
   background-color: #62a548 ;
@@ -393,7 +409,7 @@ hr {
 }
 
 .pkg-btn-tag a:hover {
-  color:var(--white);
+  color:var(--col-light);
 }
 
 .btn, #rebuildbtn {
@@ -425,7 +441,7 @@ hr {
 .pkg-btn:hover, #rebuildbtn:hover{
   background-color: #e74c3c ;
   border: 2px solid #e74c3c;
-  color:var(--white);
+  color:var(--col-light);
 }
 
 .pkg-btn a {
@@ -434,7 +450,7 @@ hr {
 }
 
 .pkg-btn a:hover {
-  color:var(--white);
+  color:var(--col-light);
 }
 
 #searchbox-pkg{
@@ -503,7 +519,7 @@ pre {
   overflow: auto;
   padding: 1rem;
   margin-bottom: 2rem;
-  color: var(--white);
+  color: var(--col-light);
 }
 
 pre > code {
@@ -523,8 +539,12 @@ blockquote *:last-of-type {
   margin-bottom: 0;
 }
 
+h1, h2, h3, h4, h5, h6 {
+  color:var(--col-dyn-dark);
+}
+
 #pkg-info h1, h2, h3, h4, h5, h6 {
-  color:var(--black);
+  color:var(--col-dyn-dark);
   font-weight: 300;
 }
 
@@ -603,7 +623,7 @@ blockquote *:last-of-type {
   text-align:center;
   padding-top:5em;
   min-height:calc(100vh - var(--footer-height));
-  color:var(--black);
+  color:var(--col-dyn-dark);
 }
 
 .logo-img {
@@ -613,11 +633,11 @@ blockquote *:last-of-type {
 /* Footer */
 
 .footer {
-  background-color:#f9fafb;
+  background-color: var(--col-dark);
   padding:1em 1.5em;
   border-top:1px solid #e5e7eb;
   height: var(--footer-height);
-  color:var(--black);
+  color:var(--col-light);
   text-align:center;
 }
 

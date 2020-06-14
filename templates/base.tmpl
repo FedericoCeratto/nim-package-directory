@@ -31,6 +31,7 @@
   </div>
   <input type="checkbox" id="nav-check">
   <div class="nav-links">
+    <button id="darkmode" onclick="toggle_dark_mode()">Toggle dark mode</button>
     <a href="/packages.xml"><i class="fas fa-rss-square" style="color:orange"></i> New Packages</a>
     <a href="/about.html">About</a>
     <a href="/search">Browse Packages</a>
@@ -43,13 +44,34 @@
   </div>
 
 <footer class="footer">
-  <p>Created by <a href="https://github.com/FedericoCeratto">Federico Ceratto</a></p>
-  <p>Copyright &copy; 2020.</p>
+  <p>Created in <a href="https://nim-lang.org/">Nim</a>
+    on <a href="https://www.debian.org/">Debian</a>.
+    <a href="https://github.com/FedericoCeratto/nim-package-directory">Available</a>
+    under <a href="https://en.wikipedia.org/wiki/GNU_General_Public_License#Version_3">GPLv3</a>
+  </p>
 </footer>
 <script>
+  function set_dark_mode() {
+    if (localStorage.getItem("theme") == "dark") {
+      document.body.classList.add("dark-mode");
+    } else {
+      document.body.classList.remove("dark-mode");
+    }
+  }
+  set_dark_mode();
+
   $$(document).ready(function(){
     $$(this).scrollTop(0);
   });
+
+  function toggle_dark_mode() {
+    if (localStorage.getItem("theme") == "dark") {
+      localStorage.setItem('theme', 'light');
+    } else {
+      localStorage.setItem('theme', 'dark');
+    }
+    set_dark_mode();
+  }
 </script>
 </body>
 </html>
