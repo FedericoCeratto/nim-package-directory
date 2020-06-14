@@ -239,10 +239,10 @@ hr {
 #showcase {
   padding:2em 0;
   border:1px solid #F4F5F7;
-  border-radius:30px;
+  border-radius:10px;
   padding:1em;
   text-align:left;
-  box-shadow: 0 2px 3px 0 rgba(0,0,0,.1),0 2px 3px 0 rgba(0,0,0,.06);
+  box-shadow: 0 2px 2px 0 rgba(0,0,0,.1),0 2px 3px 0 rgba(0,0,0,.06);
   cursor:pointer;
   height:125px;
 }
