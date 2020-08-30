@@ -513,29 +513,41 @@ proc run_process2(bin_path, desc, work_dir: string,
   return (exit_code, elapsed, output)
 
 
-proc is_newer(b, a: string): bool =
+proc is_newer(b, a: string): int =
   ## Based on Nimble implementation, compares versions a.b.c by simply
   ## comparing the integers :-/
   for (ai, bi) in zip(a.split('.'), b.split('.')):
     let aa = parseInt(ai)
     let bb = parseInt(bi)
     if bb > aa:
-      return true
+      return 1
     elif aa > bb:
-      return false
+      return -1
 
-  return false
+  return -1
 
 proc extract_latest_version(releases: JsonNode): (string, JsonNode) =
   ## Extracts the release metadata chunk from `releases` matching the latest release
   var latest_version = "-1.-1.-1"
   for r in releases:
     let version = r["tag_name"].str.strip().strip(trailing = false, chars = {'v'})
-    if is_newer(version, latest_version):
+    if is_newer(version, latest_version) > 0:
       latest_version = version
       result = (version, r)
 
   log_debug "Picking latest version from GH tags: ", latest_version
+
+proc extract_latest_versions_str(releases: JsonNode): JsonNode =
+  ## Extracts latest releases as JSON array
+  result = newJArray()
+  var latest_version = "-1.-1.-1"
+  var vers: seq[string] = @[]
+  for r in releases:
+    let version = r["tag_name"].str.strip().strip(trailing = false, chars = {'v'})
+    vers.add version
+  let x = min(vers.len, 3)
+  for v in vers.sorted(is_newer)[^x..^1]:
+    result.add newJString(v)
 
 proc fetch_github_versions(pkg: Pkg, owner_repo_name: string) {.async.} =
   ## Fetch versions from GH from releases and tags
@@ -573,6 +585,7 @@ proc fetch_github_versions(pkg: Pkg, owner_repo_name: string) {.async.} =
     let (latest_version, meta) = extract_latest_version(releases)
     doAssert meta != nil
     pkg["github_latest_version"] = newJString latest_version
+    pkg["github_latest_versions_str"] = extract_latest_versions_str(releases)
     pkg["github_latest_version_url"] = newJString meta["tarball_url"].str
     pkg["github_latest_version_time"] = newJString meta["published_at"].str
 

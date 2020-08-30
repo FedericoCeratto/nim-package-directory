@@ -37,21 +37,21 @@
         #if pkg.has_key("github_owner"):
           <p class="pkg-author"><strong>Author:</strong> <a href="https://github.com/${pkg["github_owner"].str}">${pkg["github_owner"].str}</a></p>
         #end
-       
-       #if pkg.has_key("github_versions"):
-          #if pkg["github_versions"].getElems().len > 0:
-          <p><strong>Available versions:</strong>
-          #  for semver in pkg["github_versions"].getElems():
+
+        #if pkg.has_key("github_latest_versions_str"):
+          #if pkg["github_latest_versions_str"].getElems().len > 0:
+          <p><strong>Latest versions:</strong>
+          #  for semver in pkg["github_latest_versions_str"].getElems():
               <span class="vers">${semver.str}</span>
           #  end
           </p>
           #else:
-          <p><strong>No tagged versions available </strong></p>
+          <p><strong>No tagged versions available</strong></p>
           #end
       #end
-  
+
         <p>
-      
+
        <strong>Licence:</strong>
     #     let licns = pkg["license"].str.toLowerAscii.strip
     #     if licns == "mit":
@@ -98,8 +98,8 @@
             <img class="slickbadge" id="docstatusbadge">
           </a>
         </p>
-        
-        
+
+
         <p class="build-info" id="last_build_time"></p>
         <button class="btn pkg-btn" id="rebuildbtn">Rebuild now</button>
         #if pkg.has_key("web"):
