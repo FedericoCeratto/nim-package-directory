@@ -114,8 +114,8 @@ proc generate_gpg_signature*(node: JsonNode, key: string): string =
     else: "--local-user $#" % [key]
   let cmd = "$# --detach-sign --output $# $# $#" % [gpg_path,
     tmp_signature, local_user, tmp_clearfn]
-  assert existsDir(tmp_dir)
-  assert existsFile(tmp_clearfn)
+  assert dir_exists(tmp_dir)
+  assert file_exists(tmp_clearfn)
   let env = newStringTable("GPG_TTY", tty, modeCaseInsensitive)
   echo env # FIXME use env?
   var cmd_out = ""
@@ -129,7 +129,7 @@ proc generate_gpg_signature*(node: JsonNode, key: string): string =
   except:
     echo "signing failure: ", getCurrentExceptionMsg()
     echo "gpg command: ", cmd
-    echo $existsDir(tmp_dir)
+    echo $dir_exists(tmp_dir)
     echo "## gpg output ##"
     echo cmd_out
     echo "## end ouf output ##"

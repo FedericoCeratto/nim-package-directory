@@ -296,7 +296,7 @@ proc load_packages*() =
   ## Rebuild packages_by_tag, packages_by_description_word
   log_debug "loading $#" % conf.packages_list_fname
   pkgs.clear()
-  if not conf.packages_list_fname.existsFile:
+  if not conf.packages_list_fname.file_exists:
     log_info "packages list file not found. First run?"
     let new_pkg_raw = waitFor fetch_github_packages_json()
     conf.packages_list_fname.writeFile(new_pkg_raw)
@@ -664,7 +664,7 @@ proc github_trending_packages(request: Request, pkgs: Pkgs): Future[seq[
 
 # proc fetch_using_git(pname, url: string): bool =
 #   let repo_dir =  conf.tmp_nimble_root_dir / pname
-#   if not repo_dir.existsDir():
+#   if not repo_dir.dir_exists():
 #     log_debug "checking out $#" % url
 #     run_process_old(git_bin_path, "git clone", conf.tmp_nimble_root_dir, 60, false,
 #     "clone", url, pname)
@@ -727,7 +727,7 @@ proc fetch_and_build_pkg_using_nimble_old(pname: string) {.async.} =
 #     "update", " --nimbleDir=" & conf.tmp_nimble_root_dir)
 #   assert outp.contains("Done")
 #
-#   #if not conf.tmp_nimble_root_dir.existsDir():
+#   #if not conf.tmp_nimble_root_dir.dir_exists():
 #   outp = ""
 #   if true:
 #     # First install
@@ -1304,7 +1304,7 @@ router mainRouter:
     # /dev/shm/nim_package_dir/nimgame2/pkgs/nimgame2-0.1.0/nimgame2/audio.html
 
     let fn = pkg_root_dir / doc_path
-    if not existsFile(fn):
+    if not file_exists(fn):
       log_info "serving $# - not found" % fn
       resp base_page(request, """
         <p>Sorry, that file does not exists.
