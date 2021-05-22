@@ -240,7 +240,7 @@ proc download_file*(url, fname: string, check_modified_time=true,
   ## Download file, if needed
   if fileExists(fname) and check_modified_time:
     let
-      creation_time = fname.getFileInfo.creationTime.getGMTime
+      creation_time = fname.getFileInfo.creationTime
       tstamp = creation_time.format("ddd, dd MMM yyyy hh:mm:ss") & " GMT"
       # If-Modified-Since: Sat, 29 Oct 1994 19:43:31 GMT
     let hc = newHttpClient()
