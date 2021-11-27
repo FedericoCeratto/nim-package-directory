@@ -310,6 +310,10 @@ input#search {
   border-top:1px solid #e5e7eb;
 }
 
+#pkg-content div div article ul li {
+  color:var(--col-dyn-dark);
+}
+
 #pkg-info {
   padding-top:5em;
   min-height:calc(100vh - var(--footer-height));
