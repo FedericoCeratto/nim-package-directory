@@ -198,6 +198,10 @@ hr {
   border-radius:20px;
 }
 
+input#search {
+  color: var(--col-dyn-dark);
+}
+
 #search:focus {
     outline:0;
     width:400px;
