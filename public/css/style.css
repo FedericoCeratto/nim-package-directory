@@ -202,6 +202,10 @@ input#search {
   color: var(--col-dyn-dark);
 }
 
+input#search-pkg {
+  color: var(--col-dyn-dark);
+}
+
 #search:focus {
     outline:0;
     width:400px;
