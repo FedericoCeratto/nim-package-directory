@@ -314,9 +314,14 @@ input#search-pkg {
   border-top:1px solid #e5e7eb;
 }
 
+/* Fix dark mode on github-rendered readmes*/
 #pkg-content div div article ul li {
   color:var(--col-dyn-dark);
 }
+#pkg-content div div article table tbody tr td {
+  color:var(--col-dyn-dark);
+}
+
 
 #pkg-info {
   padding-top:5em;
