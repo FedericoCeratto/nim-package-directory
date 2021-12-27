@@ -187,6 +187,7 @@ var cache: Cache
 
 proc save(cache: Cache) =
   let f = newFileStream(cache_fn, fmWrite)
+  log_debug "writing " & absolutePath(cache_fn)
   f.store(cache)
   f.close()
 
@@ -299,6 +300,7 @@ proc load_packages*() =
   if not conf.packages_list_fname.file_exists:
     log_info "packages list file not found. First run?"
     let new_pkg_raw = waitFor fetch_github_packages_json()
+    log_info "writing $#" % absolutePath(conf.packages_list_fname)
     conf.packages_list_fname.writeFile(new_pkg_raw)
 
   let pkg_list = conf.packages_list_fname.parseFile
@@ -1781,7 +1783,6 @@ proc run_systemd_sdnotify_pinger(ping_time_s: int) {.async.} =
   while true:
     sd.ping_watchdog()
     stats.gauge("build_time", epochTime() - t)
-    echo "ping"
     t = epochTime()
 
     await sleepAsync ping_time_s * 1000
