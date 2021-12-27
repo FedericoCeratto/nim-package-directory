@@ -1,7 +1,7 @@
 #
 # Nimble package directory - persistent data
 #
-# Copyright 2016 Federico Ceratto <federico.ceratto@gmail.com>
+# Copyright 2016-2021 Federico Ceratto <federico.ceratto@gmail.com>
 # Released under GPLv3 License, see LICENSE file
 #
 import marshal,
@@ -11,7 +11,7 @@ from net import Port
 
 const
   pkgs_history_fname = "pkgs_history.json"
-  conf_fname = "conf.json"
+  conf_fname = "/etc/nim-package-directory.conf"
 
 proc save_pkgs_history*(ph: seq[string]) =
   store(newFileStream(pkgs_history_fname, fmWrite), ph)
@@ -27,7 +27,7 @@ proc load_pkgs_history*(): seq[string] =
 
 type
   Conf* = object of RootObj
-    github_token*, log_fname*, packages_list_fname*, public_baseurl*, tmp_nimble_root_dir*: string
+    github_token*, packages_list_fname*, public_baseurl*, tmp_nimble_root_dir*: string
     port*: Port
 
 proc load_conf*(): Conf =

@@ -1,2 +1,3 @@
 package_directory usr/bin
 public var/lib/nim_package_directory
+debian/nim-package-directory.conf /etc

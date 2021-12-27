@@ -4,8 +4,9 @@
 Description=nim-package-directory
 Documentation=man:nim-package-directory
 Documentation=https://github.com/FedericoCeratto/nim-package-directory
-After=network.target httpd.service squid.service nfs-server.service mysqld.service named.service postfix.service
+After=network.target
 Wants=network-online.target
+ConditionPathExists=/etc/nim-package-directory.conf
 
 [Service]
 Type=simple
