@@ -1573,7 +1573,11 @@ router mainRouter:
 
   get "/robots.txt":
     ## Serve robots.txt to throttle bots
-    const robots = """User-agent: *
+    const robots = """
+User-agent: DataForSeoBot
+Disallow: /
+
+User-agent: *
 Disallow: /about.html
 Disallow: /api
 Disallow: /ci
