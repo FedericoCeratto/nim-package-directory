@@ -1,0 +1,15 @@
+#!/bin/sh
+
+set -e
+
+if [ "$1" = "configure" ]; then
+    if ! getent passwd nim-package-directory >/dev/null; then
+        adduser --quiet --system --group --no-create-home --home /var/lib/nim_package_directory nim-package-directory
+    fi
+    mkdir -p /var/lib/nim_package_directory/
+    chown nim-package-directory -Rv /var/lib/nim_package_directory/
+fi
+
+#DEBHELPER#
+
+exit 0

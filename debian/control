@@ -1,0 +1,12 @@
+Source: nim-package-directory
+Section: web
+Priority: optional
+Maintainer: Federico Ceratto <federico@debian.org>
+Build-Depends: debhelper (>= 9), libsystemd-dev
+Standards-Version: 3.9.8
+
+Package: nim-package-directory
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, unzip, libzmq5, nim
+Description: Nim package directory
+ Nim package directory service
