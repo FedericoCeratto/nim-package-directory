@@ -21,10 +21,18 @@ Currently running at https://nimble.directory
 
 .Prerequisites :
 - systemd watchdog
-- optional: StatsD to receive application metrics
+- optional: Netdata or StatsD to receive application metrics
 
-.Use:
-- For Development, Copy and edit `conf.json.example` to `conf.json`.
-- Download the Nims packages.json to projects root folder: https://raw.githubusercontent.com/nim-lang/packages/master/packages.json
+.Deployment:
+
+  sudo apt-get install nim
+  nimble builddeb
+  # Locate and install the package
+  sudo apt install ../nim-package-directory_0.1.5_amd64.deb
+  sudo systemctl status nim-package-directory.service
+  sudo journalctl -f --identifier=package_directory
+
+.Development:
+- For Development, edit /etc/nim-package-directory.conf
 - Execute `nim c -r package_directory.nim`.
-- Open on the web browser http://localhost:5000/search
+- Browse http://localhost:5000
