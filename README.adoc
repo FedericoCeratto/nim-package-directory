@@ -25,7 +25,7 @@ Currently running at https://nimble.directory
 
 .Deployment:
 
-  sudo apt-get install nim
+  sudo apt-get install nim dpkg-dev debhelper libsystemd-dev
   nimble builddeb
   # Locate and install the package
   sudo apt install ../nim-package-directory_0.1.5_amd64.deb
