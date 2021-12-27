@@ -51,7 +51,6 @@ const
   sdnotify_ping_time_s = 10
   nim_bin_path = "/usr/bin/nim"
   nimble_bin_path = "/usr/bin/nimble"
-  task_pubsub_port = 5583
   build_expiry_time = initTimeInterval(minutes = 240)  # TODO: check version/commitish instead
   cache_fn = ".cache.json"
 
@@ -97,8 +96,6 @@ proc log_req(request: Request) =
       path.add c
 
   log_info "serving $# $# $#" % [request.ip, $request.reqMeth, path]
-
-log_debug conf
 
 type
   ProcessError = object of Exception
@@ -170,6 +167,10 @@ var most_queried_packages = initCountTable[string]()
 const build_history_size = 100
 var build_history = initDeque[BuildHistoryItem]()
 
+# stats
+var install_success_count = 0
+var install_failure_count = 0
+var doc_gen_success_count = 0
 # disk-persisted cache
 
 type
@@ -888,6 +889,25 @@ proc generate_jsondoc(pname: string) {.async.} =
         log_debug "failed to read and parse " & json_fn & " : " &
             getCurrentExceptionMsg()
 
+proc generate_install_stats(success: bool) =
+  if success:
+    stats.incr("install_succeded")
+    inc install_success_count
+  else:
+    stats.incr("install_failed")
+    inc install_failure_count
+
+  let rate = install_success_count * 100 / (install_success_count + install_failure_count)
+  stats.gauge("build_success_rate", rate)
+
+proc generate_doc_build_stats() =
+  # called only on success
+  inc doc_gen_success_count
+  if install_success_count == 0:
+    return
+  let rate = doc_gen_success_count * 100 / install_success_count
+  stats.gauge("doc_gen_success_rate", rate)
+
 
 proc fetch_and_build_pkg_if_needed_wrapped(pname: string, force_rebuild = false) {.async.} =
   ## Fetch package and build docs
@@ -950,7 +970,8 @@ proc fetch_and_build_pkg_if_needed_wrapped(pname: string, force_rebuild = false)
   if pkgs_doc_files[pname].build_status != BuildStatus.OK:
     pkgs_building.excl pname  # unlock
     log_debug "fetch_and_build_pkg_if_needed failed - skipping doc generation"
-    stats.incr("build_failed")
+    generate_install_stats(false)
+
     build_history.append(
       pname,
       pkgs_doc_files[pname].build_time,
@@ -961,13 +982,14 @@ proc fetch_and_build_pkg_if_needed_wrapped(pname: string, force_rebuild = false)
     save_pkg_metadata(pkgs_doc_files[pname], fn)
     return # install failed
 
-  stats.incr("build_succeded")
+  generate_install_stats(true)
 
   try:
     let t1 = epochTime()
     await build_docs(pname) # this can raise
     let elapsed = epochTime() - t1
     stats.gauge("doc_build_time", elapsed)
+    generate_doc_build_stats()
   finally:
     pkgs_building.excl pname  # unlock
 
