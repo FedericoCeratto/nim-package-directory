@@ -663,3 +663,28 @@ h1, h2, h3, h4, h5, h6 {
 .footer p {
   margin:0;
 }
+
+
+/* install and docgen output */
+
+pre#run_output {
+  color: var(--col-dyn-dark);
+  background-color: var(--col-dyn-light);
+  font-size: 80%;
+  white-space: pre-wrap;
+  white-space: -moz-pre-wrap;
+  white-space: -pre-wrap;
+  white-space: -o-pre-wrap;
+  word-wrap: break-word;
+}
+span.term-blue { color: #6060ff; }
+span.term-red { color: #ff6000; }
+span.term-success { color: #60ff60; }
+span#run_output { padding: 1em; }
+
+div.doc_build_success {
+  border-left: 4px solid #60ff60;
+}
+div.doc_build_fail {
+  border-left: 4px solid #ff6000;
+}

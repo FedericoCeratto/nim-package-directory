@@ -1065,13 +1065,13 @@ proc wait_build_completion(pname: string) {.async.} =
     await sleepAsync 1000
 
 proc translate_term_colors*(outp: string): string =
-  ## Translate terminal colors
+  ## Translate terminal colors into HTML with CSS classes
   const sequences = @[
     ("[36m[2m", "<span>"),
-    ("[32m[1m", """<span class="success">"""),
-    ("[33m[1m", """<span class="red">"""),
-    ("[31m[1m", """<span class="red">"""),
-    ("[36m[1m", """<span class="blue">"""),
+    ("[32m[1m", """<span class="term-success">"""),
+    ("[33m[1m", """<span class="term-red">"""),
+    ("[31m[1m", """<span class="term-red">"""),
+    ("[36m[1m", """<span class="term-blue">"""),
     ("[0m[31m[0m", "</span>"),
     ("[0m[32m[0m", "</span>"),
     ("[0m[33m[0m", "</span>"),
@@ -1079,7 +1079,7 @@ proc translate_term_colors*(outp: string): string =
     ("[0m[0m", "</span>"),
     ("[2m", "<span>"),
     ("[36m", "<span>"),
-    ("[33m", """<span class="blue">"""),
+    ("[33m", """<span class="term-blue">"""),
   ]
   result = outp
   for s in sequences:
@@ -1549,7 +1549,7 @@ router mainRouter:
     try:
       let outp = pkgs_doc_files[pname].build_output
       let build_output = translate_term_colors(outp)
-      resp base_page(request, generate_build_output_page(
+      resp base_page(request, generate_run_output_page(
         pname,
         build_output,
         pkgs_doc_files[pname].build_time,
@@ -1583,7 +1583,7 @@ router mainRouter:
         doc_build_html.add "<p>$#</p>" % t
         doc_build_html.add "</div>"
 
-      resp base_page(request, generate_build_output_page(
+      resp base_page(request, generate_run_output_page(
         pname,
         doc_build_html,
         pkgs_doc_files[pname].build_time,
