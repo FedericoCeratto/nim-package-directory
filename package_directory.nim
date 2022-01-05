@@ -1,7 +1,7 @@
 #
 # Nimble package directory
 #
-# Copyright 2016 Federico Ceratto <federico.ceratto@gmail.com>
+# Copyright 2016-2022 Federico Ceratto <federico.ceratto@gmail.com>
 # Released under GPLv3 License, see LICENSE file
 #
 
@@ -20,6 +20,7 @@ import asyncdispatch,
  times,
  uri
 
+from std/strformat import `&`
 from xmltree import escape
 from algorithm import sort, sorted, sortedByIt, reversed
 from marshal import store, load
@@ -814,13 +815,13 @@ proc build_docs(pname: string) {.async.} =
       # trim away <pkg_root_dir> and ".nim"
       let basename = fname[pkg_root_dir.len..^5]
       generated_doc_fnames.add basename & ".html"
-      log_debug "adding ", basename & ".html"
+      log_debug &"adding {basename}.html"
 
       for kind, path in walkDir(pkg_root_dir, relative = true):
         if path.endswith(".idx"):
           #generated_idx_fnames.add basename & ".idx"
           #idx_filenames.add path
-          log_debug "adding ", pkg_root_dir & " > " & path
+          log_debug &"adding {pkg_root_dir} > path"
           #let chunks = path.split('-', maxsplit=1)
           #if chunks[0].normalize() == pname:
           #  result = pkgs_dir / path
@@ -831,6 +832,59 @@ proc build_docs(pname: string) {.async.} =
   pkgs_doc_files[pname].doc_build_status =
     if (input_fnames.len == generated_doc_fnames.len): BuildStatus.OK
     else: BuildStatus.Failed
+
+
+proc parse_jsondoc(fname: string, pkg_root_dir: string, pname: string) =
+  ## Parse jsondoc items, add them to the global `jsondoc_symbols`
+  ## and `jsondoc_symbols_by_pkg`
+  # replace ".nim" with ".json"
+  let (jsonf_dir, jsonf_basename, _) = splitFile(fname)
+  var json_fn = jsonf_dir / jsonf_basename  & ".json"
+  var json_data = ""
+  try:
+    log_debug &"reading {json_fn}"
+    json_data = readFile(json_fn)
+  except IOError:
+    json_fn = jsonf_dir / "htmldocs" / jsonf_basename  & ".json"
+    try:
+      log_debug &"reading {json_fn}"
+      json_data = readFile(json_fn)
+    except IOError:
+      log_debug "failed to read " & json_fn & " : " &
+          getCurrentExceptionMsg()
+      return
+
+  try:
+    var j = parseJson(json_data)
+    if j.kind == JObject:
+      j = j["entries"]
+    for chunk in j:
+      let symbol_name = chunk["name"].getStr()
+      let description = chunk{"description"}.getStr().strip_html()
+      let symbol = PkgSymbol(
+        itype: chunk["type"].getStr(),
+        desc: description,
+        code: chunk["code"].getStr(),
+        filepath: fname[pkg_root_dir.len..^1],
+        line: chunk["line"].getInt(),
+        col: chunk["col"].getInt(),
+      )
+      try:
+        if not jsondoc_symbols[symbol_name].contains symbol:
+          jsondoc_symbols[symbol_name].add(symbol)
+      except KeyError:
+        jsondoc_symbols[symbol_name] = @[symbol]
+
+      let i: PkgSymbolsIndexer = (pname, symbol_name)
+      try:
+        if not jsondoc_symbols_by_pkg[i].contains symbol:
+          jsondoc_symbols_by_pkg[i].add(symbol)
+      except KeyError:
+        jsondoc_symbols_by_pkg[i] = @[symbol]
+
+  except:
+    log_debug "failed to parse " & json_fn & " : " &
+        getCurrentExceptionMsg()
 
 proc generate_jsondoc(pname: string) {.async.} =
   ## Generate jsondoc items, add them to the global `jsondoc_symbols`
@@ -857,37 +911,7 @@ proc generate_jsondoc(pname: string) {.async.} =
     )
     let success = (po.exit_code == 0)
     if success:
-      # replace ".nim" with ".json"
-      let json_fn = fname[0..^5] & ".json"
-      try:
-        let j = parseJson(readFile(json_fn))
-        for chunk in j:
-          let symbol_name = chunk["name"].getStr()
-          let description = chunk{"description"}.getStr().strip_html()
-          let symbol = PkgSymbol(
-            itype: chunk["type"].getStr(),
-            desc: description,
-            code: chunk["code"].getStr(),
-            filepath: fname[pkg_root_dir.len..^1],
-            line: chunk["line"].getInt(),
-            col: chunk["col"].getInt(),
-          )
-          try:
-            if not jsondoc_symbols[symbol_name].contains symbol:
-              jsondoc_symbols[symbol_name].add(symbol)
-          except KeyError:
-            jsondoc_symbols[symbol_name] = @[symbol]
-
-          let i: PkgSymbolsIndexer = (pname, symbol_name)
-          try:
-            if not jsondoc_symbols_by_pkg[i].contains symbol:
-              jsondoc_symbols_by_pkg[i].add(symbol)
-          except KeyError:
-            jsondoc_symbols_by_pkg[i] = @[symbol]
-
-      except:
-        log_debug "failed to read and parse " & json_fn & " : " &
-            getCurrentExceptionMsg()
+      parse_jsondoc(fname, pkg_root_dir, pname)
 
 proc generate_install_stats(success: bool) =
   if success:
@@ -1329,12 +1353,17 @@ router mainRouter:
 
     let fn = pkg_root_dir / doc_path
     if not file_exists(fn):
-      log_info "serving $# - not found" % fn
-      resp base_page(request, """
-        <p>Sorry, that file does not exists.
-        <a href="/pkg/$#">Go back to $#</a>
-        </p>
-        """ % [pname, pname])
+      log_info "error serving $# - not found" % fn
+
+      let fn2 = pkg_root_dir / "htmldocs" / doc_path
+      if not file_exists(fn2):
+        log_info "error serving $# - not found" % fn2
+
+        resp base_page(request, """
+          <p>Sorry, that file does not exists.
+          <a href="/pkg/$#">Go back to $#</a>
+          </p>
+          """ % [pname, pname])
 
     # Serve doc or idx file
     if doc_path.endswith(".idx"):
