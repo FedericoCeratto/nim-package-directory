@@ -1,7 +1,7 @@
 #
 # Nimble package directory - functional test
 #
-# Copyright 2016 Federico Ceratto <federico.ceratto@gmail.com>
+# Copyright 2016-2022 Federico Ceratto <federico.ceratto@gmail.com>
 # Released under GPLv3 License, see LICENSE file
 #
 # WARNING: do not run functional tests on a live instance!
@@ -57,7 +57,7 @@ suite "functional tests":
     check page.contains "Jester provides a DSL"
     # Check string from the GH readme
     check page.contains "Routes will be executed in the order"
-    check page.contains "0.2.0"
+    check page.contains "0.5.0"
 
     for cnt in 1..100:
       if "done" in newHttpClient().getContent(url & "/api/v1/status/jester"):
@@ -68,7 +68,7 @@ suite "functional tests":
     test "JSON status: done":
       let status = get(url & "/api/v1/status/jester").parseJSON()
       check status["status"].getStr() == "done"
-      check status["build_time"].getStr().startsWith("201")
+      check status["build_time"].getStr().startsWith("202")
 
   test "fetch packages.json":
     var page = get url & "/packages.json"
