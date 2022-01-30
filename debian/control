@@ -3,7 +3,7 @@ Section: web
 Priority: optional
 Maintainer: Federico Ceratto <federico@debian.org>
 Build-Depends: debhelper-compat (= 13), libsystemd-dev
-Standards-Version: 3.9.8
+Standards-Version: 4.6.0
 
 Package: nim-package-directory
 Architecture: any
