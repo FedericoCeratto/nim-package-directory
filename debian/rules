@@ -3,7 +3,7 @@ export DH_VERBOSE=1
 # hardened using nim.cfg
 
 %:
-	dh $@ --with systemd
+	dh $@
 
 override_dh_auto_build:
 	nimble --verbose c -d:systemd -d:release --checks:on --assertions:on --stackTrace:on --lineTrace:on  package_directory.nim
