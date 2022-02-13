@@ -7,6 +7,12 @@ Standards-Version: 4.6.0
 
 Package: nim-package-directory
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, unzip, libzmq5, nim
+Depends:
+ ${shlibs:Depends},
+ ${misc:Depends},
+ libjs-highlight.js,
+ libjs-jquery,
+ nim,
+ unzip
 Description: Nim package directory
  Nim package directory service
