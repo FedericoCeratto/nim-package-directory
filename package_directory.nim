@@ -1420,9 +1420,10 @@ router mainRouter:
     log_req request
     stats.incr("views")
     resp base_page(request, """
-    <br/>
-    <p>Runtime: $#</p>
-    <p>Queried packages count: $#</p>
+<div class="container" style="padding-top: 10rem;">
+  <p class="text-center">Runtime: $#</p>
+  <p class="text-center">Queried packages count: $#</p>
+</div>
     """ % [$cpuTime(), $len(most_queried_packages)])
 
   # CI Routing
