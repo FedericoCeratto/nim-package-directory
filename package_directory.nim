@@ -5,27 +5,29 @@
 # Released under GPLv3 License, see LICENSE file
 #
 
-import asyncdispatch,
- deques,
- httpclient,
- httpcore,
- json,
- os,
- osproc,
- sequtils,
- sets,
- streams,
- strutils,
- tables,
- times,
- uri
+import std/[
+  asyncdispatch,
+  deques,
+  httpclient,
+  httpcore,
+  json,
+  os,
+  osproc,
+  sequtils,
+  sets,
+  streams,
+  strutils,
+  tables,
+  times,
+  uri
+]
 
 from std/strformat import `&`
-from xmltree import escape
-from algorithm import sort, sorted, sortedByIt, reversed
-from marshal import store, load
-from posix import onSignal, SIGINT, SIGTERM, getpid
-from times import epochTime
+from std/xmltree import escape
+from std/algorithm import sort, sorted, sortedByIt, reversed
+from std/marshal import store, load
+from std/posix import onSignal, SIGINT, SIGTERM, getpid
+from std/times import epochTime
 
 #from nimblepkg import getTagsListRemote, getVersionList
 import jester,
@@ -99,9 +101,9 @@ var pkgs_building = initHashSet[string]()
 # tag -> package name
 # initialized/updated by load_packages
 var packages_by_tag = newTable[string, seq[string]]()
- # word -> package name
- # word -> package name
- # initialized/updated by load_packages
+
+# word -> package name
+# initialized/updated by load_packages
 var packages_by_description_word = newTable[string, seq[string]]()
 
 # symbol -> seq[PkgSymbol]
@@ -177,7 +179,7 @@ proc save_metadata(j: PkgDocMetadata, fn: string) =
   f.close()
 
 proc load_metadata(fn: string): PkgDocMetadata =
-  ## load package metadata
+  ## Load package metadata
   log_debug "Loading $#" % fn
   load(newFileStream(fn, fmRead), result)
 
@@ -848,15 +850,13 @@ router mainRouter:
   get "/search":
     log_req request
     stats.incr("views")
-    let found_pkg_names = search_packages(@"query")
 
-    var pkgs_list: seq[Pkg] = @[]
-    for pn in found_pkg_names.keys():
-      pkgs_list.add pkgs[pn]
+    var searched_pkgs: seq[Pkg] = @[]
+    for name in search_packages(@"query").keys():
+      searched_pkgs.add pkgs[name]
+    stats.gauge("search_found_pkgs", searched_pkgs.len)
 
-    stats.gauge("search_found_pkgs", pkgs_list.len)
-    let body = generate_search_box(@"query") &
-               generate_pkg_list_page(pkgs_list)
+    let body = generate_search_box(@"query") & generate_pkg_list_page(searched_pkgs)
     resp base_page(request, body)
 
   get "/build_history.html":
@@ -864,8 +864,7 @@ router mainRouter:
     include "templates/build_history.tmpl"
     log_req request
 
-    resp base_page(request, generate_build_history_page(build_history,
-        pkgs_waiting_build, pkgs_building))
+    resp base_page(request, generate_build_history_page(build_history, pkgs_waiting_build, pkgs_building))
 
   get "/pkg/@pkg_name/?":
     log_req request
@@ -1351,6 +1350,7 @@ Crawl-delay: 300
     resp(robots, contentType = "text/plain")
 
   include "templates/jsondoc_symbols.tmpl" # generate_jsondoc_symbols_page
+
   get "/searchitem":
     ## Search for jsondoc symbol across all packages
     log_req request
@@ -1379,6 +1379,7 @@ Crawl-delay: 300
     resp %matches
 
   include "templates/jsondoc_pkg_symbols.tmpl" # generate_jsondoc_pkg_symbols_page
+
   post "/searchitem_pkg":
     ## Search for jsondoc symbol in one package
     log_req request
@@ -1467,14 +1468,12 @@ proc poll_nimble_packages(poll_time_s: int) {.async.} =
       log.error getCurrentExceptionMsg()
 
 
-
-
-
 onSignal(SIGINT, SIGTERM):
   ## Exit signal handler
   log.info "Exiting"
   cache.save()
   quit()
+
 
 proc main() =
   #setup_seccomp()

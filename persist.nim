@@ -4,10 +4,9 @@
 # Copyright 2016-2021 Federico Ceratto <federico.ceratto@gmail.com>
 # Released under GPLv3 License, see LICENSE file
 #
-import marshal,
-  streams
 
-from net import Port
+import std/[marshal, streams]
+from std/net import Port
 
 const
   pkgs_history_fname = "pkgs_history.json"
