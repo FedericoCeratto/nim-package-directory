@@ -37,19 +37,12 @@ import github, util, signatures, persist
 
 const
   template_path = "./templates"
-  build_timeout_seconds = 60 * 4
-  github_readme_tpl = "https://api.github.com/repos/$#/readme"
-  github_tags_tpl = "https://api.github.com/repos/$#/tags"
-  github_api_releases_tpl = "https://api.github.com/repos/$#/releases"
-  github_doc_index_tpl = "https://$#.github.io/$#/index.html"
-  github_repository_search_tpl = "https://api.github.com/search/repositories?q=language:nim+pushed:>$#&per_page=$#sort=$#&page=$#"
-  github_caching_time = 600
-  github_packages_json_raw_url = "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json"
-  github_packages_json_polling_time_s = 10 * 60
   git_bin_path = "/usr/bin/git"
-  sdnotify_ping_time_s = 10
   nim_bin_path = "/usr/bin/nim"
   nimble_bin_path = "/usr/bin/nimble"
+  build_timeout_seconds = 60 * 4
+  nimble_packages_polling_time_s = 10 * 60
+  sdnotify_ping_time_s = 10
   build_expiry_time = initTimeInterval(minutes = 240)  # TODO: check version/commitish instead
   cache_fn = ".cache.json"
 
@@ -170,7 +163,7 @@ proc load_cache(): Cache =
     result.save()
     log_debug "new cache created"
 
-proc save_pkg_metadata(j: PkgDocMetadata, fn: string) =
+proc save_metadata(j: PkgDocMetadata, fn: string) =
   ## Save package metadata
   log_debug "Saving to $#" % fn
   var k = PkgDocMetadata()
@@ -234,11 +227,6 @@ const
 #     ctx.add_rule(Allow, sc)
 #   ctx.load()
 
-proc fetch_github_packages_json(): Future[string] {.async.} =
-  ## Fetch packages.json from GitHub
-  log_debug "fetching ", github_packages_json_raw_url
-  return await newAsyncHttpClient().getContent(github_packages_json_raw_url)
-
 proc load_packages*() =
   ## Load packages.json
   ## Rebuild packages_by_tag, packages_by_description_word
@@ -246,7 +234,7 @@ proc load_packages*() =
   pkgs.clear()
   if not conf.packages_list_fname.file_exists:
     log_info "packages list file not found. First run?"
-    let new_pkg_raw = waitFor fetch_github_packages_json()
+    let new_pkg_raw = waitFor fetch_nimble_packages()
     log_info "writing $#" % absolutePath(conf.packages_list_fname)
     conf.packages_list_fname.writeFile(new_pkg_raw)
 
@@ -321,37 +309,6 @@ proc search_packages*(query: string): CountTable[string] =
   # sort packages by best match
   found_pkg_names.sort()
   return found_pkg_names
-
-proc getGHJson(url: string): Future[JsonNode] {.async.} =
-  ## async get JSON from GH
-  let ac = newAsyncHttpClient()
-  ac.headers = github_token_headers
-  let r = await ac.getContent(url)
-  return parseJson(r)
-
-proc fetch_github_readme*(pkg: Pkg, owner_repo_name: string) {.async.} =
-  ## Fetch README.* from GitHub
-  log_debug "fetching GH readme ", github_readme_tpl % owner_repo_name
-  try:
-    let ac = newAsyncHttpClient()
-    ac.headers = github_token_headers
-    ac.headers["Accept"] = "application/vnd.github.v3.html"
-    let readme = await ac.getContent(github_readme_tpl % owner_repo_name)
-    pkg["github_readme"] = newJString readme
-  except:
-    log_debug "failed to fetch GH readme"
-    log_debug getCurrentExceptionMsg()
-    pkg["github_readme"] = newJString ""
-
-proc fetch_github_doc_pages(pkg: Pkg, owner, repo_name: string) {.async.} =
-  ## Fetch documentation pages from GitHub
-  let url = github_doc_index_tpl % [owner.toLowerAscii, repo_name]
-  log_debug "Checking ", url
-  let resp = await newAsyncHttpClient().get(url)
-  if resp.status.startswith("200"):
-    pkg["doc"] = newJString url
-  else:
-    log_debug "Doc not found at ", url
 
 proc append(build_history: var Deque[BuildHistoryItem], name: string,
     build_time: Time, build_status, doc_build_status: BuildStatus) =
@@ -444,65 +401,6 @@ proc run_process2(bin_path, desc, work_dir: string,
     log_debug "[$#] $#> $#" % [$pid, $exit_code, line]
 
   return (exit_code, elapsed, output)
-
-
-proc fetch_github_versions(pkg: Pkg, owner_repo_name: string) {.async.} =
-  ## Fetch versions from GH from releases and tags
-  ## Set github_versions, github_latest_version, github_latest_version_url
-  log_debug "fetching GH tags ", github_tags_tpl % owner_repo_name
-  var version_names = newJArray()
-  try:
-    let ac = newAsyncHttpClient()
-    ac.headers = github_token_headers
-    let rtags = await ac.getContent(github_tags_tpl % owner_repo_name)
-    let tags = parseJson(rtags)
-    for t in tags:
-      let name = t["name"].str.strip(trailing = false, chars = {'v'})
-      if name.len > 0:
-        version_names.add newJString name
-  except:
-    log_info getCurrentExceptionMsg()
-    pkg["github_versions"] = version_names
-    pkg["github_latest_version"] = newJString "none"
-    pkg["github_latest_version_url"] = newJString ""
-    return
-
-  pkg["github_versions"] = version_names
-  log_debug "fetched $# GH versions" % $len(version_names)
-
-  log_debug "fetching GH releases ", github_api_releases_tpl % owner_repo_name
-  var releases: JsonNode
-  try:
-    releases = await getGHJson(github_api_releases_tpl % owner_repo_name)
-  except:
-    log_debug getCurrentExceptionMsg()
-    releases = newJArray()
-
-  if releases.len > 0:
-    let (latest_version, meta) = extract_latest_version(releases)
-    doAssert meta != nil
-    pkg["github_latest_version"] = newJString latest_version
-    pkg["github_latest_versions_str"] = extract_latest_versions_str(releases)
-    pkg["github_latest_version_url"] = newJString meta["tarball_url"].str
-    pkg["github_latest_version_time"] = newJString meta["published_at"].str
-
-  else:
-    log_debug getCurrentExceptionMsg()
-    log_debug "No releases - falling back to tags"
-    var latest = "0"
-    for v in version_names:
-      if v.str > latest:
-        latest = v.str
-    if latest == "0":
-      pkg["github_latest_version"] = newJString "none"
-      pkg["github_latest_version_url"] = newJString ""
-    else:
-      pkg["github_latest_version"] = newJString latest.strip
-      pkg["github_latest_version_url"] = newJString(
-        "https://github.com/$#/archive/v$#.tar.gz" % [owner_repo_name, latest]
-      )
-
-    pkg["github_latest_version_time"] = newJString ""
 
 
 # proc fetch_using_git(pname, url: string): bool =
@@ -1014,13 +912,10 @@ router mainRouter:
         pkg["github_last_update_time"] = newJInt epochTime().int
         let owner = url.split('/')[3]
         let repo_name = url.split('/')[4]
-        var owner_repo_name = "$#/$#" % url.split('/')[3..4]
-        if owner_repo_name.endswith(".git"):
-          owner_repo_name = owner_repo_name[0..^5]
         pkg["github_owner"] = newJString owner
-        await pkg.fetch_github_readme(owner_repo_name)
-        await pkg.fetch_github_versions(owner_repo_name)
-        await pkg.fetch_github_doc_pages(owner, repo_name)
+        pkg["github_readme"] = await fetch_github_readme(owner, repo_name)
+        pkg["doc"] = await fetch_github_doc_pages(owner, repo_name)
+        await pkg.fetch_github_versions(owner, repo_name)
 
     resp base_page(request, generate_pkg_page(pkg))
 
@@ -1645,9 +1540,9 @@ proc run_systemd_sdnotify_pinger(ping_time_s: int) {.async.} =
     await sleepAsync ping_time_s * 1000
 
 
-proc run_github_packages_json_polling(poll_time_s: int) {.async.} =
-  ## Poll GH for packages.json
-  ## Overwrite packages.json local file!
+proc poll_nimble_packages(poll_time_s: int) {.async.} =
+  ## Poll GitHub for packages.json
+  ## Overwrites the packages.json local file!
   log_debug "starting GH packages.json polling"
   var first_run = true
   while true:
@@ -1657,7 +1552,7 @@ proc run_github_packages_json_polling(poll_time_s: int) {.async.} =
       await sleepAsync poll_time_s * 1000
     log_debug "Polling GitHub packages.json"
     try:
-      let new_pkg_raw = await fetch_github_packages_json()
+      let new_pkg_raw = await fetch_nimble_packages()
       if new_pkg_raw == conf.packages_list_fname.readFile:
         log_debug "No changes"
         stats.gauge("packages_all_known", pkgs.len)
@@ -1706,9 +1601,8 @@ proc main() =
   load_packages()
   cache = load_cache()
   scan_pkgs_dir(conf.tmp_nimble_root_dir)
-  #asyncCheck start_nim_commit_polling(github_nim_commit_polling_time)
   asyncCheck run_systemd_sdnotify_pinger(sdnotify_ping_time_s)
-  asyncCheck run_github_packages_json_polling(github_packages_json_polling_time_s)
+  asyncCheck poll_nimble_packages(nimble_packages_polling_time_s)
 
   log_info "starting server"
   var server = initJester(mainRouter)
