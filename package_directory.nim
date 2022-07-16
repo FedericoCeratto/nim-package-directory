@@ -771,69 +771,89 @@ proc generate_doc_build_stats() =
   let rate = doc_gen_success_count * 100 / install_success_count
   stats.gauge("doc_gen_success_rate", rate)
 
-
-proc fetch_and_build_pkg_if_needed_wrapped(pname: string, force_rebuild = false) {.async.} =
+proc fetch_and_build_pkg_if_needed(pname: string, force_rebuild = false) {.async.} =
   ## Fetch package and build docs
   ## Modifies pkgs_doc_files
-
-  if pkgs_doc_files.hasKey(pname):
-    # A build has been already done or is currently running.
-
-    if pname in pkgs_waiting_build or pname in pkgs_building:
-      # Build already running
-      return
-
-    if not force_rebuild and pkgs_doc_files[pname].expire_time > getTime():
-      # No need to rebuild yet
-      return
-
-  else:
-    # The package has never been built before: create PkgDocMetadata
-    log_info "Starting FIRST build for " & pname
-    let pm = PkgDocMetadata(
-      fnames: @[],
-      idx_fnames: @[],
-    )
-    pkgs_doc_files[pname] = pm
-
-  # Wait for a slot before starting
-  pkgs_waiting_build.incl pname   # lock
-  pkgs_doc_files[pname].build_status = BuildStatus.Waiting
-  pkgs_doc_files[pname].doc_build_status = BuildStatus.Waiting
-  stats.gauge("pkgs_waiting_build_len", pkgs_waiting_build.len)
-
-  while pkgs_building.len >= 1:
-    log_debug "waiting for a build slot. Queue size: " & $pkgs_waiting_build.len
-    if pkgs_waiting_build.len < 10:
-      log_debug pkgs_waiting_build
-    stats.gauge("pkgs_waiting_build_len", pkgs_waiting_build.len)
-    await sleepAsync 1000
-
-  # Start build
-  pkgs_building.incl pname
-  pkgs_waiting_build.excl pname
-  pkgs_doc_files[pname].build_status = BuildStatus.Running
-  pkgs_doc_files[pname].doc_build_status = BuildStatus.Running
-  pkgs_doc_files[pname].build_time = getTime()
-  pkgs_doc_files[pname].expire_time = getTime() + build_expiry_time
-  stats.gauge("pkgs_waiting_build_len", pkgs_waiting_build.len)
-
-  # Fetch or update pkg
-  let url = pkgs[pname]["url"].str
-
   try:
-    let t0 = epochTime()
-    await fetch_and_build_pkg_using_nimble_old(pname)
-    let elapsed = epochTime() - t0
-    stats.gauge("build_time", elapsed)
-  except:
-    pkgs_building.excl pname  # unlock
-    raise
+    # A build has been already done or is currently running.
+    if pkgs_doc_files.hasKey(pname):
 
-  if pkgs_doc_files[pname].build_status != BuildStatus.OK:
-    pkgs_building.excl pname  # unlock
-    log_debug "fetch_and_build_pkg_if_needed failed - skipping doc generation"
-    generate_install_stats(false)
+      # Build already running
+      if pname in pkgs_waiting_build or pname in pkgs_building:
+        return
+
+      # No need to rebuild yet
+      if not force_rebuild and pkgs_doc_files[pname].expire_time > getTime():
+        return
+
+    # The package has never been built before: create PkgDocMetadata
+    else:
+      log_info "Starting FIRST build for " & pname
+      let pm = PkgDocMetadata(
+        fnames: @[],
+        idx_fnames: @[],
+      )
+      pkgs_doc_files[pname] = pm
+
+    # Wait for a slot before starting
+    pkgs_waiting_build.incl pname   # lock
+    pkgs_doc_files[pname].build_status = BuildStatus.Waiting
+    pkgs_doc_files[pname].doc_build_status = BuildStatus.Waiting
+    stats.gauge("pkgs_waiting_build_len", pkgs_waiting_build.len)
+
+    while pkgs_building.len >= 1:
+      log_debug "waiting for a build slot. Queue size: " & $pkgs_waiting_build.len
+      if pkgs_waiting_build.len < 10:
+        log_debug pkgs_waiting_build
+      stats.gauge("pkgs_waiting_build_len", pkgs_waiting_build.len)
+      await sleepAsync 1000
+
+    # Start build
+    pkgs_building.incl pname
+    pkgs_waiting_build.excl pname
+    pkgs_doc_files[pname].build_status = BuildStatus.Running
+    pkgs_doc_files[pname].doc_build_status = BuildStatus.Running
+    pkgs_doc_files[pname].build_time = getTime()
+    pkgs_doc_files[pname].expire_time = getTime() + build_expiry_time
+    stats.gauge("pkgs_waiting_build_len", pkgs_waiting_build.len)
+
+    # Fetch or update pkg
+    let url = pkgs[pname]["url"].str
+
+    try:
+      let t0 = epochTime()
+      await fetch_and_build_pkg_using_nimble(pname)
+      let elapsed = epochTime() - t0
+      stats.gauge("build_time", elapsed)
+    except:
+      pkgs_building.excl pname  # unlock
+      raise
+
+    if pkgs_doc_files[pname].build_status != BuildStatus.OK:
+      pkgs_building.excl pname  # unlock
+      log_debug "fetch_and_build_pkg_if_needed failed - skipping doc generation"
+      generate_install_stats(false)
+
+      build_history.append(
+        pname,
+        pkgs_doc_files[pname].build_time,
+        pkgs_doc_files[pname].build_status,
+        pkgs_doc_files[pname].doc_build_status
+      )
+      let fn = package_parent_dir(pname) & "/nimpkgdir.json"
+      save_metadata(pkgs_doc_files[pname], fn)
+      return # install failed
+
+    generate_install_stats(true)
+
+    try:
+      let t1 = epochTime()
+      await build_docs(pname) # this can raise
+      let elapsed = epochTime() - t1
+      stats.gauge("doc_build_time", elapsed)
+      generate_doc_build_stats()
+    finally:
+      pkgs_building.excl pname  # unlock
 
     build_history.append(
       pname,
@@ -841,56 +861,30 @@ proc fetch_and_build_pkg_if_needed_wrapped(pname: string, force_rebuild = false)
       pkgs_doc_files[pname].build_status,
       pkgs_doc_files[pname].doc_build_status
     )
+
+    if pkgs[pname].hasKey("github_latest_version"):
+      pkgs_doc_files[pname].version = pkgs[pname][
+          "github_latest_version"].str.strip
+    else:
+      log_debug "FIXME github_latest_version"
+      pkgs_doc_files[pname].version = "?"
+
+    try:
+      let t2 = epochTime()
+      await generate_jsondoc(pname) # this can raise
+      let elapsed = epochTime() - t2
+      stats.gauge("jsondoc_build_time", elapsed)
+    except:
+      log.error("jsondoc failed for " & pname)
+
     let fn = package_parent_dir(pname) & "/nimpkgdir.json"
-    save_pkg_metadata(pkgs_doc_files[pname], fn)
-    return # install failed
-
-  generate_install_stats(true)
-
-  try:
-    let t1 = epochTime()
-    await build_docs(pname) # this can raise
-    let elapsed = epochTime() - t1
-    stats.gauge("doc_build_time", elapsed)
-    generate_doc_build_stats()
-  finally:
-    pkgs_building.excl pname  # unlock
-
-  build_history.append(
-    pname,
-    pkgs_doc_files[pname].build_time,
-    pkgs_doc_files[pname].build_status,
-    pkgs_doc_files[pname].doc_build_status
-  )
-
-  if pkgs[pname].hasKey("github_latest_version"):
-    pkgs_doc_files[pname].version = pkgs[pname][
-        "github_latest_version"].str.strip
-  else:
-    log_debug "FIXME github_latest_version"
-    pkgs_doc_files[pname].version = "?"
-
-  try:
-    let t2 = epochTime()
-    await generate_jsondoc(pname) # this can raise
-    let elapsed = epochTime() - t2
-    stats.gauge("jsondoc_build_time", elapsed)
-  except:
-    log.error("jsondoc failed for " & pname)
-
-  let fn = package_parent_dir(pname) & "/nimpkgdir.json"
-  save_pkg_metadata(pkgs_doc_files[pname], fn)
-  try:
-    let pm: PkgDocMetadata = load_metadata(fn)
-  except:
-    log.error("JSON: created broken file: " & fn)
-
-proc fetch_and_build_pkg_if_needed(pname: string, force_rebuild = false) {.async.} =
-  try:
-    await fetch_and_build_pkg_if_needed_wrapped(pname, force_rebuild)
+    save_metadata(pkgs_doc_files[pname], fn)
+    try:
+      let pm: PkgDocMetadata = load_metadata(fn)
+    except:
+      log.error("JSON: created broken file: " & fn)
   except:
     log.error "build failed for " & pname & " " & getCurrentExceptionMsg()
-
 
 proc wait_build_completion(pname: string) {.async.} =
   let t0 = epochTime()
