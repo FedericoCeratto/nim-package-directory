@@ -272,17 +272,6 @@ proc load_packages*() =
   #log_debug "writing $#" % conf.packages_list_fname
   #conf.packages_list_fname.writeFile(conf.packages_list_fname.readFile)
 
-
-proc cleanupWhitespace(s: string): string
-
-proc save_packages() =
-  ## Save packages.json
-  var new_pkgs = newJArray()
-  for pname in toSeq(pkgs.keys()).sorted(system.cmp):
-    new_pkgs.add pkgs[pname]
-
-  conf.packages_list_fname.writeFile(new_pkgs.pretty.cleanupWhitespace)
-
 proc search_packages*(query: string): CountTable[string] =
   ## Search packages by name, tag and keyword
   let query = query.strip.toLowerAscii.split({' ', ','})
@@ -976,7 +965,12 @@ router mainRouter:
         halt Http400, "Key not accepted"
 
     pkgs[name] = pkg_data
-    save_packages()
+
+    var new_pkgs = newJArray()
+    for pname in toSeq(pkgs.keys()).sorted(system.cmp):
+      new_pkgs.add pkgs[pname]
+    conf.packages_list_fname.writeFile(new_pkgs.pretty.cleanup_whitespace)
+
     log_info if pkg_already_exists: "Updated existing package $#" % name
       else: "Added new package $#" % name
     resp base_page(request, "OK")
