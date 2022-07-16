@@ -219,58 +219,15 @@ const
   doc_running_badge = slurp "templates/doc_running.svg"
   version_badge_tpl = slurp template_path / "version-template-blue.svg"
 
-# proc setup_seccomp() =
-#   ## Setup seccomp sandbox
-#   const syscalls = """accept,access,arch_prctl,bind,brk,close,connect,epoll_create,epoll_ctl,epoll_wait,execve,fcntl,fstat,futex,getcwd,getrlimit,getuid,ioctl,listen,lseek,mmap,mprotect,munmap,open,poll,read,readlink,recvfrom,rt_sigaction,rt_sigprocmask,sendto,set_robust_list,setsockopt,set_tid_address,socket,stat,uname,write"""
-#   let ctx = seccomp_ctx()
-#   for sc in syscalls.split(','):
-#     ctx.add_rule(Allow, sc)
-#   ctx.load()
-
-proc load_packages*() =
-  ## Load packages.json
-  ## Rebuild packages_by_tag, packages_by_description_word
-  log_debug "loading $#" % conf.packages_list_fname
-  pkgs.clear()
-  if not conf.packages_list_fname.file_exists:
-    log_info "packages list file not found. First run?"
-    let new_pkg_raw = waitFor fetch_nimble_packages()
-    log_info "writing $#" % absolutePath(conf.packages_list_fname)
-    conf.packages_list_fname.writeFile(new_pkg_raw)
-
-  let pkg_list = conf.packages_list_fname.parseFile
-  for pdata in pkg_list:
-    if not pdata.hasKey("name"):
-      continue
-    if not pdata.hasKey("tags"):
-      continue
-    # Normalize pkg name
-    pdata["name"].str = pdata["name"].str.normalize()
-    if pdata["name"].str in pkgs:
-      log.warn "Duplicate pkg name $#" % pdata["name"].str
-      continue
-
-    pkgs[pdata["name"].str] = pdata
-
-    for tag in pdata["tags"]:
-      if not packages_by_tag.hasKey(tag.str):
-        packages_by_tag[tag.str] = @[]
-      packages_by_tag[tag.str].add pdata["name"].str
-
-    # collect packages matching a word in their descriptions
-    let orig_words = pdata["description"].str.split({' ', ','})
-    for orig_word in orig_words:
-      if orig_word.len < 3:
-        continue # ignore short words
-      let word = orig_word.toLowerAscii
-      if not packages_by_description_word.hasKey(word):
-        packages_by_description_word[word] = @[]
-      packages_by_description_word[word].add pdata["name"].str
-
-  log_info "Loaded ", $pkgs.len, " packages"
-
-  #log_debug "writing $#" % conf.packages_list_fname
-  #conf.packages_list_fname.writeFile(conf.packages_list_fname.readFile)
+#[
+proc setup_seccomp() =
+  ## Setup seccomp sandbox
+  const syscalls = """accept,access,arch_prctl,bind,brk,close,connect,epoll_create,epoll_ctl,epoll_wait,execve,fcntl,fstat,futex,getcwd,getrlimit,getuid,ioctl,listen,lseek,mmap,mprotect,munmap,open,poll,read,readlink,recvfrom,rt_sigaction,rt_sigprocmask,sendto,set_robust_list,setsockopt,set_tid_address,socket,stat,uname,write"""
+  let ctx = seccomp_ctx()
+  for sc in syscalls.split(','):
+    ctx.add_rule(Allow, sc)
+  ctx.load()
+]#
 
 proc search_packages*(query: string): CountTable[string] =
   ## Search packages by name, tag and keyword
@@ -309,32 +266,33 @@ proc append(build_history: var Deque[BuildHistoryItem], name: string,
 
 type RunOutput = tuple[exit_code: int, elapsed: float, output: string]
 
+#[
+proc run_process(bin_path, desc, work_dir: string,
+    timeout: int, log_output: bool,
+    args: varargs[string, `$`]): (bool, string) {.discardable.} =
+  ## Run command with timeout
+  # TODO: async
 
-# proc run_process(bin_path, desc, work_dir: string,
-#     timeout: int, log_output: bool,
-#     args: varargs[string, `$`]): (bool, string) {.discardable.} =
-#   ## Run command with timeout
-#   # TODO: async
-#
-#   log_debug "running: <" & bin_path & " " & join(args, " ") & "> in " & work_dir
-#
-#   var p = startProcess(
-#     bin_path, args=args,
-#     workingDir=work_dir,
-#     options={poStdErrToStdOut}
-#   )
-#   let exit_val = p.waitForExit(timeout=timeout * 1000)
-#   let stdout_str = p.outputStream().readAll()
-#
-#   if log_output or (exit_val != 0):
-#     if stdout_str.len > 0:
-#       log_debug "Stdout: ---\n$#---" % stdout_str
-#
-#   if exit_val == 0:
-#     log_debug "$# successful" % desc
-#   else:
-#     log.error "run_process: $# failed, exit value: $#" % [desc, $exit_val]
-#   return ((exit_val == 0), stdout_str)
+  log_debug "running: <" & bin_path & " " & join(args, " ") & "> in " & work_dir
+
+  var p = startProcess(
+    bin_path, args=args,
+    workingDir=work_dir,
+    options={poStdErrToStdOut}
+  )
+  let exit_val = p.waitForExit(timeout=timeout * 1000)
+  let stdout_str = p.outputStream().readAll()
+
+  if log_output or (exit_val != 0):
+    if stdout_str.len > 0:
+      log_debug "Stdout: ---\n$#---" % stdout_str
+
+  if exit_val == 0:
+    log_debug "$# successful" % desc
+  else:
+    log.error "run_process: $# failed, exit value: $#" % [desc, $exit_val]
+  return ((exit_val == 0), stdout_str)
+]#
 
 proc run_process2(bin_path, desc, work_dir: string,
     timeout: int, log_output: bool,
@@ -391,31 +349,37 @@ proc run_process2(bin_path, desc, work_dir: string,
 
   return (exit_code, elapsed, output)
 
+#[
+proc fetch_pkg_using_nimble(pname: string): bool =
+  let pkg_install_dir = conf.tmp_nimble_root_dir / pname
 
-# proc fetch_using_git(pname, url: string): bool =
-#   let repo_dir =  conf.tmp_nimble_root_dir / pname
-#   if not repo_dir.dir_exists():
-#     log_debug "checking out $#" % url
-#     run_process_old(git_bin_path, "git clone", conf.tmp_nimble_root_dir, 60, false,
-#     "clone", url, pname)
-#   else:
-#     log_debug "git pull-ing $#" % url
-#     run_process_old(git_bin_path, "git pull", repo_dir, 60, false,
-#     "pull")
-#
-#   let commitish = run_process_old(git_bin_path, "git rev-parse", repo_dir,
-#   1, false,
-#   "rev-parse", "--verify", "HEAD")
-#
-#   if commitish == pkgs_doc_files[pname].last_commitish:
-#     pkgs_doc_files[pname].expire_time = getTime() + build_expiry_time
-#     log_debug "no changes to repo"
-#     return false
-#
-#   return true
+  var outp = run_process_old(nimble_bin_path, "nimble update",
+    conf.tmp_nimble_root_dir, 10, true,
+    "update", " --nimbleDir=" & conf.tmp_nimble_root_dir)
+  assert outp.contains("Done")
 
+  #if not conf.tmp_nimble_root_dir.dir_exists():
+  outp = ""
+  if true:
+    # First install
+    log_debug conf.tmp_nimble_root_dir, " is not existing"
+    outp = run_process_old(nimble_bin_path, "nimble install", conf.tmp_nimble_root_dir,
+      60, true,
+      "install", pname, " --nimbleDir=./nyan", "-y")
+    log_debug "Install successful"
 
-proc fetch_and_build_pkg_using_nimble_old(pname: string) {.async.} =
+  else:
+    # Update pkg
+    #outp = run_process_old(nimble_bin_path, "nimble install", "/", 60, true,
+    #  "install", pname, " --nimbleDir=" & conf.tmp_nimble_root_dir, "-y")
+    #  FIXME
+    log_debug "Update successful"
+
+  pkgs_doc_files[pname].build_output = outp
+  return true
+]#
+
+proc fetch_and_build_pkg_using_nimble(pname: string) {.async.} =
   ## Run nimble install for a package using a dedicated directory
   let tmp_dir = conf.tmp_nimble_root_dir / pname
   log_debug "Starting nimble install $# --verbose --nimbleDir=$# -y" % [pname, tmp_dir]
@@ -449,33 +413,50 @@ proc fetch_and_build_pkg_using_nimble_old(pname: string) {.async.} =
   pkgs_doc_files[pname].build_time = getTime()
   pkgs_doc_files[pname].expire_time = getTime() + build_expiry_time
 
-# proc fetch_pkg_using_nimble(pname: string): bool =
-#   let pkg_install_dir = conf.tmp_nimble_root_dir / pname
-#
-#   var outp = run_process_old(nimble_bin_path, "nimble update",
-#     conf.tmp_nimble_root_dir, 10, true,
-#     "update", " --nimbleDir=" & conf.tmp_nimble_root_dir)
-#   assert outp.contains("Done")
-#
-#   #if not conf.tmp_nimble_root_dir.dir_exists():
-#   outp = ""
-#   if true:
-#     # First install
-#     log_debug conf.tmp_nimble_root_dir, " is not existing"
-#     outp = run_process_old(nimble_bin_path, "nimble install", conf.tmp_nimble_root_dir,
-#       60, true,
-#       "install", pname, " --nimbleDir=./nyan", "-y")
-#     log_debug "Install successful"
-#
-#   else:
-#     # Update pkg
-#     #outp = run_process_old(nimble_bin_path, "nimble install", "/", 60, true,
-#     #  "install", pname, " --nimbleDir=" & conf.tmp_nimble_root_dir, "-y")
-#     #  FIXME
-#     log_debug "Update successful"
-#
-#   pkgs_doc_files[pname].build_output = outp
-#   return true
+proc load_packages*() =
+  ## Load packages.json
+  ## Rebuild packages_by_tag, packages_by_description_word
+  log_debug "loading $#" % conf.packages_list_fname
+  pkgs.clear()
+  if not conf.packages_list_fname.file_exists:
+    log_info "packages list file not found. First run?"
+    let new_pkg_raw = waitFor fetch_nimble_packages()
+    log_info "writing $#" % absolutePath(conf.packages_list_fname)
+    conf.packages_list_fname.writeFile(new_pkg_raw)
+
+  let pkg_list = conf.packages_list_fname.parseFile
+  for pdata in pkg_list:
+    if not pdata.hasKey("name"):
+      continue
+    if not pdata.hasKey("tags"):
+      continue
+    # Normalize pkg name
+    pdata["name"].str = pdata["name"].str.normalize()
+    if pdata["name"].str in pkgs:
+      log.warn "Duplicate pkg name $#" % pdata["name"].str
+      continue
+
+    pkgs[pdata["name"].str] = pdata
+
+    for tag in pdata["tags"]:
+      if not packages_by_tag.hasKey(tag.str):
+        packages_by_tag[tag.str] = @[]
+      packages_by_tag[tag.str].add pdata["name"].str
+
+    # collect packages matching a word in their descriptions
+    let orig_words = pdata["description"].str.split({' ', ','})
+    for orig_word in orig_words:
+      if orig_word.len < 3:
+        continue # ignore short words
+      let word = orig_word.toLowerAscii
+      if not packages_by_description_word.hasKey(word):
+        packages_by_description_word[word] = @[]
+      packages_by_description_word[word].add pdata["name"].str
+
+  log_info "Loaded ", $pkgs.len, " packages"
+
+  # log_debug "writing $#" % conf.packages_list_fname
+  # conf.packages_list_fname.writeFile(conf.packages_list_fname.readFile)
 
 proc package_parent_dir(pname: string): string =
   ## Generate pkg parent dir
@@ -1419,102 +1400,6 @@ Crawl-delay: 300
   error Exception:
     resp Http500, "Something bad happened: " & exception.msg
 
-
-
-#def refresh_nim_version(basepath):
-#    """Refresh Nim version from the last successful build
-#    """
-#    global last_successful_nim_version
-#    try:
-#        r = requests.get(basepath + 'release_tarball_name')
-#        v = r.text.strip().split('/')[-1]
-#        assert v.startswith('nim-')
-#        last_successful_nim_version = v[4:-7]
-#    except Exception as e:
-#        print(e)
-#        pass
-#
-#
-#
-#def start_build_if_needed():
-#    rebuild_nim, run_install_test, reason = \
-#        repo_monitor.check(rebuild_nim=False, run_install_test=False)
-#    if reason:
-#        start_build(rebuild_nim=rebuild_nim, reason=reason,
-#                    run_install_test=run_install_test)
-#        return True
-#    return False
-#
-#
-#def timed_start_build_if_needed():
-#    Timer(REBUILD_CHECK_TIME, timed_start_build_if_needed).start()
-#    start_build_if_needed()
-#
-#def send_status_email_if_needed():
-#    pass
-#
-#def timed_send_status_email_if_needed():
-#    Timer(REBUILD_CHECK_TIME, timed_start_build_if_needed).start()
-#    send_status_email_if_needed()
-
-
-
-
-#status_fn = os.path.expanduser("~/.nimci_cronjob.json")
-#def load_status():
-#    try:
-#        with open(status_fn) as f:
-#            return json.load(f)
-#    except IOError:
-#        return dict(nim_commit=None, nimble_commit=None, pkgs_commit=None)
-#
-#def save_status(st):
-#    with open(status_fn, 'w') as f:
-#        json.dump(st, f)
-
-
-
-#
-#def check(rebuild_nim=False, run_install_test=False):
-#    changed_components = []
-#    if not rebuild_nim:
-#        status = load_status()
-#        # rebuild Nim only if needed
-#        last_nim_commit = fetch_last_commit(nim_commit_url)
-#        last_nimble_commit = fetch_last_commit(nimble_commit_url)
-#        if status['nim_commit'] != last_nim_commit:
-#            changed_components.append('Nim')
-#
-#        if status['nimble_commit'] != last_nimble_commit:
-#            changed_components.append('Nimble')
-#
-#        if changed_components:
-#            rebuild_nim = True
-#            status['nim_commit'] = last_nim_commit
-#            status['nimble_commit'] = last_nimble_commit
-#            save_status(status)
-#
-#    packages_changed = False
-#    last_pkgs_commit = fetch_last_commit(pkgs_commit_url)
-#    if status['pkgs_commit'] != last_pkgs_commit:
-#        packages_changed = True
-#        changed_components.append('Packages list')
-#        status['pkgs_commit'] = last_pkgs_commit
-#        save_status(status)
-#
-#    run_install_test = run_install_test or rebuild_nim or packages_changed
-#
-#    reason = "change in %s" % ', '.join(changed_components) \
-#        if changed_components else None
-#    return rebuild_nim, run_install_test, reason
-#
-
-
-proc start_nim_commit_polling(poll_time: TimeInterval) {.async.} =
-  while true:
-    await sleepAsync(poll_time.milliseconds)
-    #FIXME asyncCheck
-
 proc run_systemd_sdnotify_pinger(ping_time_s: int) {.async.} =
   ## Ping systemd watchdog using sd_notify
   const msg = "NOTIFY_SOCKET env var not found - pinging to logfile"
@@ -1589,7 +1474,6 @@ onSignal(SIGINT, SIGTERM):
   ## Exit signal handler
   log.info "Exiting"
   cache.save()
-  #save_packages()
   quit()
 
 proc main() =

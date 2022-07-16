@@ -179,15 +179,3 @@ proc fetch_trending_packages*(request: Request, pkgs: Pkgs): Future[seq[Pkg]] {.
   volatile_cache_github_trending_last_update_time = epochTime().int
 
   return trending_pkgs
-
-#
-#def fetch_last_commit(url):
-#    """Fetch from GitHub API
-#    """
-#    r = requests.get(url, auth=('FedericoCeratto', GH_TOKEN))
-#    try:
-#        return r.json()['object']['sha']
-#    except:
-#        print("Unable to parse output from %s" % url)
-#        print(repr(r))
-#
