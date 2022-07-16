@@ -849,7 +849,11 @@ router mainRouter:
     log_debug "pkgs history len: $#" % $cache.pkgs_history.len
     var new_pkgs: seq[Pkg] = @[]
     for n in 1..min(cache.pkgs_history.len, 10):
-      let package_name: string = cache.pkgs_history[^n].name.normalize()
+      let package_name: string =
+        if cache.pkgs_history[^n].name.len > 4 and cache.pkgs_history[^n].name[0..3] == "nim-":
+          cache.pkgs_history[^n].name[4..^1].normalize()
+        else:
+          cache.pkgs_history[^n].name.normalize()
       if pkgs.hasKey(package_name):
         new_pkgs.add pkgs[package_name]
       else:
