@@ -33,7 +33,7 @@ import jester,
   sdnotify,
   statsd_client
 
-import util, signatures, persist
+import github, util, signatures, persist
 
 const
   template_path = "./templates"
@@ -61,27 +61,18 @@ const
   }
 
 
-
 # init
-
-let conf = load_conf()
-let github_token_headers = newHttpHeaders({
-  "Authorization": "token $#" % conf.github_token})
-let stats = newStatdClient(prefix = "nim_package_directory")
 
 type
   ProcessError = object of Exception
-  Pkg* = JsonNode
-  Pkgs* = TableRef[string, Pkg]
-  strSeq = seq[string]
   BuildStatus {.pure.} = enum OK, Failed, Timeout, Running, Waiting
   DocBuildOutItem = object
     success_flag: bool
     filename, desc, output: string
   DocBuildOut = seq[DocBuildOutItem]
   PkgDocMetadata = object of RootObj
-    fnames: strSeq
-    idx_fnames: strSeq
+    fnames: seq[string]
+    idx_fnames: seq[string]
     build_time: Time
     expire_time: Time
     last_commitish: string
@@ -90,7 +81,6 @@ type
     doc_build_status: BuildStatus
     doc_build_output: DocBuildOut
     version: string
-
   RssItem = object
     title, desc, pubDate: string
     url, guid: Uri
@@ -212,12 +202,6 @@ proc scan_pkgs_dir(pkgs_root: string) =
       # ignore metadata
       log_info "Load error: " & getCurrentExceptionMsg()
   log_info "----"
-  discard
-
-# volatile caches
-
-var volatile_cache_github_trending_last_update_time = 0
-var volatile_cache_github_trending: seq[JsonNode] = @[]
 
 
 # HTML templates
@@ -519,60 +503,6 @@ proc fetch_github_versions(pkg: Pkg, owner_repo_name: string) {.async.} =
       )
 
     pkg["github_latest_version_time"] = newJString ""
-
-proc fetch_github_repository_stats(sorting = "updated", pagenum = 1,
-    limit = 200, initial_date: DateTime):
-    Future[seq[JsonNode]] {.async.} =
-  ## Fetch projects on GitHub
-  let date = initial_date.format("yyyy-MM-dd")
-  let q = github_repository_search_tpl % [date, $limit, sorting, $pagenum]
-  log_info "Searching GH repos: '$#'" % q
-  let query_res = await getGHJson(q)
-  if sorting == "updated":
-    return query_res["items"].elems.sortedByIt(it["updated_at"].str).reversed()
-  return query_res["items"].elems
-
-proc github_trending_packages(request: Request, pkgs: Pkgs): Future[seq[
-    JsonNode]] {.async.} =
-  ## Trending GitHub packages
-  # TODO: Dom: merge this into the procedure above ^
-
-  if volatile_cache_github_trending_last_update_time +
-      github_caching_time > epochTime().int:
-    return volatile_cache_github_trending
-
-  result = @[]
-  let pkgs_list = await fetch_github_repository_stats(
-    sorting = "updated", pagenum = 1, limit = 20,
-    initial_date = utc(getTime() - 14.days)
-  )
-  var website_to_name = initTable[string, string]()
-  for it in pkgs.values:
-    if it.hasKey("web"):
-      website_to_name[it["web"].str] = it["name"].str
-
-  for p in pkgs_list:
-    p["update_age"] = newJString ""
-    # TODO: remove last update
-    #try:
-    #  # 2017-07-21T12:48:35Z
-    #  let pa = p["pushed_at"].getStr()
-    #  let t = parse(pa, "yyyy-MM-dd\'T\'HH:mm:ss", utc())
-    #  let d = toFriendlyInterval(t, now().utc, approx = 2)
-    #  p["update_age"] = newJString d
-    #except:
-    #  p["update_age"] = newJString ""
-
-    let url = p["html_url"].str
-    if website_to_name.hasKey url:
-      # The package is known to Nimble - set the "official" package name
-      p["name"].str = website_to_name[url]
-      result.add p
-
-  volatile_cache_github_trending = result
-  volatile_cache_github_trending_last_update_time = epochTime().int
-
-
 
 
 # proc fetch_using_git(pname, url: string): bool =
@@ -1027,26 +957,27 @@ router mainRouter:
   get "/":
     log_req request
     stats.incr("views")
+
+    # Grab the most queried packages
     var top_pkgs: seq[Pkg] = @[]
     for pname in top_keys(most_queried_packages, 5):
       if pkgs.hasKey(pname):
         top_pkgs.add pkgs[pname]
 
+    # Grab the newest packages
     log_debug "pkgs history len: $#" % $cache.pkgs_history.len
-    # List 5 newest packages
     var new_pkgs: seq[Pkg] = @[]
-    for n in 1..min(cache.pkgs_history.len, 5):
-      let pname = cache.pkgs_history[^n].name.normalize()
-      if pkgs.hasKey(pname):
-        new_pkgs.add pkgs[pname]
+    for n in 1..min(cache.pkgs_history.len, 10):
+      let package_name: string = cache.pkgs_history[^n].name.normalize()
+      if pkgs.hasKey(package_name):
+        new_pkgs.add pkgs[package_name]
       else:
-        log_debug "$# not found in package list" % pname
+        log_debug "$# not found in package list" % package_name
 
-    let github_trending = await github_trending_packages(request, pkgs)
+    # Grab trending packages, as measured by GitHub
+    let trending_pkgs = await fetch_trending_packages(request, pkgs)
 
-    let home = generate_home_page(top_pkgs, new_pkgs,
-                                  github_trending)
-    resp base_page(request, home)
+    resp base_page(request, generate_home_page(top_pkgs, new_pkgs, trending_pkgs))
 
   get "/search":
     log_req request
@@ -1212,7 +1143,7 @@ router mainRouter:
         halt Http400
         ""
 
-    var idx_filenames: strSeq = @[]
+    var idx_filenames: seq[string] = @[]
     for kind, path in walkDir(pkg_root_dir, relative = true):
       if path.endswith(".idx"):
         idx_filenames.add path
