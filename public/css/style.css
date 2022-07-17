@@ -354,6 +354,10 @@ footer a {
   color: #097dea;
 }
 
+.anchor {
+  margin-right: 10px;
+}
+
 /**
  * Misc
  */
