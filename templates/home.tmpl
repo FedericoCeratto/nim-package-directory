@@ -104,7 +104,12 @@ ${generate_search_box()}
         <ul class="package-box-meta-foot mt-1">
           <li class="text-gray">
             <svg width="16" height="16" viewBox="0 0 16 16" style="display:inline-block;vertical-align:text-bottom"><path fill-rule="evenodd" d="M10.5 5a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0zm.061 3.073a4 4 0 10-5.123 0 6.004 6.004 0 00-3.431 5.142.75.75 0 001.498.07 4.5 4.5 0 018.99 0 .75.75 0 101.498-.07 6.005 6.005 0 00-3.432-5.142z"></path></svg>
-            <a href="#">Nim</a>
+            # let url = pkg["url"].str.strip(false, true, {'/'}).rsplit('/', maxsplit=2)
+            # if url.len == 3:
+            <a href="${url[0] & "/" & url[1]}">${url[1]}</a>
+            # else:
+            <a href="#">Unknown</a>
+            # end
           </li>
           <li>
             <svg width="16" height="16" viewBox="0 0 16 16" style="display:inline-block;vertical-align:text-bottom"><path fill-rule="evenodd" d="M2 2.5A2.5 2.5 0 014.5 0h8.75a.75.75 0 01.75.75v12.5a.75.75 0 01-.75.75h-2.5a.75.75 0 110-1.5h1.75v-2h-8a1 1 0 00-.714 1.7.75.75 0 01-1.072 1.05A2.495 2.495 0 012 11.5v-9zm10.5-1V9h-8c-.356 0-.694.074-1 .208V2.5a1 1 0 011-1h8zM5 12.25v3.25a.25.25 0 00.4.2l1.45-1.087a.25.25 0 01.3 0L8.6 15.7a.25.25 0 00.4-.2v-3.25a.25.25 0 00-.25-.25h-3.5a.25.25 0 00-.25.25z"></path></svg>
@@ -137,7 +142,12 @@ ${generate_search_box()}
         <ul class="package-box-meta-foot mt-1">
           <li class="text-gray">
             <svg width="16" height="16" viewBox="0 0 16 16" style="display:inline-block;vertical-align:text-bottom"><path fill-rule="evenodd" d="M10.5 5a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0zm.061 3.073a4 4 0 10-5.123 0 6.004 6.004 0 00-3.431 5.142.75.75 0 001.498.07 4.5 4.5 0 018.99 0 .75.75 0 101.498-.07 6.005 6.005 0 00-3.432-5.142z"></path></svg>
-            <a href="#">Nim</a>
+            # let url = pkg["url"].str.strip(false, true, {'/'}).rsplit('/', maxsplit=2)
+            # if url.len == 3:
+            <a href="${url[0] & "/" & url[1]}">${url[1]}</a>
+            # else:
+            <a href="#">Unknown</a>
+            # end
           </li>
           <li>
             <svg width="16" height="16" viewBox="0 0 16 16" style="display:inline-block;vertical-align:text-bottom"><path fill-rule="evenodd" d="M2 2.5A2.5 2.5 0 014.5 0h8.75a.75.75 0 01.75.75v12.5a.75.75 0 01-.75.75h-2.5a.75.75 0 110-1.5h1.75v-2h-8a1 1 0 00-.714 1.7.75.75 0 01-1.072 1.05A2.495 2.495 0 012 11.5v-9zm10.5-1V9h-8c-.356 0-.694.074-1 .208V2.5a1 1 0 011-1h8zM5 12.25v3.25a.25.25 0 00.4.2l1.45-1.087a.25.25 0 01.3 0L8.6 15.7a.25.25 0 00.4-.2v-3.25a.25.25 0 00-.25-.25h-3.5a.25.25 0 00-.25.25z"></path></svg>
