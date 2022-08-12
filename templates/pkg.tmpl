@@ -102,13 +102,14 @@
 
         <p class="build-info" id="last_build_time"></p>
         <button class="btn pkg-btn" id="rebuildbtn">Rebuild now</button>
+        #let url = pkg["url"].str
+        <a href="${url}" ><button class="btn pkg-btn">Project source</button></a> 
         #if pkg.has_key("web"):
           <a href="${pkg["web"].str}" ><button class="btn pkg-btn">Project website</button></a> 
         #end
         #if pkg.has_key("doc"):
           <a href="${pkg["doc"].str}"><button class="btn pkg-btn"> Docs</button></a>
         #end if
-        #let url = pkg["url"].str
         #if url.startswith("https://github.com/") or url.startswith("http://github.com/") or url.startswith("git"):
           <a href="/docs/${pname}"><button class="btn pkg-btn">Hosted docs</button></a>
         #end if
