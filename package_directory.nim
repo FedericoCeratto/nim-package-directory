@@ -18,7 +18,8 @@ import asyncdispatch,
  strutils,
  tables,
  times,
- uri
+ uri,
+ re
 
 from std/strformat import `&`
 from xmltree import escape
@@ -48,10 +49,7 @@ const
   github_caching_time = 600
   github_packages_json_raw_url = "https://raw.githubusercontent.com/nim-lang/packages/master/packages.json"
   github_packages_json_polling_time_s = 10 * 60
-  git_bin_path = "/usr/bin/git"
   sdnotify_ping_time_s = 10
-  nim_bin_path = "/usr/bin/nim"
-  nimble_bin_path = "/usr/bin/nimble"
   build_expiry_time = initTimeInterval(minutes = 240)  # TODO: check version/commitish instead
   cache_fn = ".cache.json"
 
@@ -62,7 +60,10 @@ const
     "Content-Type": "image/svg+xml"
   }
 
-
+let
+  nim_bin_path = findExe("nim")
+  nimble_bin_path = findExe("nimble")
+  git_bin_path = findExe("git")
 
 # init
 
@@ -775,6 +776,20 @@ proc locate_pkg_root_dir(pname: string): string =
 
   raise newException(Exception, "Root dir for $# not found" % pname)
 
+proc get_version(pname: string): Future[string] {.async.} =
+  ## Gets the version of installed package
+  let pkg_root_dir = locate_pkg_root_dir(pname)
+  let po = await run_process2(
+    nimble_bin_path,
+    "nimble dump --json",
+    pkg_root_dir,
+    10,
+    true,
+    @["dump", "--json"]
+  )
+  if po.exit_code == 0:
+    result = po.output.parseJson()["version"].getStr()
+
 proc build_docs(pname: string) {.async.} =
   ## Build docs
   let pkg_root_dir = locate_pkg_root_dir(pname)
@@ -788,47 +803,43 @@ proc build_docs(pname: string) {.async.} =
   for fname in pkg_root_dir.walkDirRec():
     if fname.endswith(".nim"):
       input_fnames.add fname
+  let pkg = pkgs[pname]
+  # Compile the whole project at once
+  log_debug "running nim doc for $#" % pname
+  # NOTE: Was able to add --git.url and --git.commit to docs to allow see source
+  #       but it would 404 since installing the package flattened it so it would go to
+  #       repo/something.nim instead of the correct repo/src/something.nim/
+  #       Could be solved by moving package into its srcDir first?
+  # TODO: Can we safely assume there will be a file with same name as package?
+  let args =  @["doc", "--index:on", "--docCmd:skip", "--project",
+                pname & ".nim"]
+  let desc = "nim " & args.join(" ")
+  let po = await run_process2(
+    nimble_bin_path,
+    desc,
+    pkg_root_dir,
+    10,
+    true,
+    args
+  )
+  let success = (po.exit_code == 0)
 
-  for fname in input_fnames:
-    log_debug "running nim doc for $#" % fname
+  all_output.add DocBuildOutItem(
+    success_flag: success,
+    filename: pname & ".nim",
+    desc: desc,
+    output: po.output
+  )
 
-    # TODO: enable --docSeeSrcUrl:<url>
-
-    let desc = "nim doc --index:on $#" % fname
-    let run_dir = fname.splitPath.head
-    let po = await run_process2(
-      nim_bin_path,
-      desc,
-      run_dir,
-      10,
-      true,
-      @["doc", "--index:on", fname],
-    )
-    let success = (po.exit_code == 0)
-    all_output.add DocBuildOutItem(
-      success_flag: success,
-      filename: fname,
-      desc: desc,
-      output: po.output
-    )
-    if success:
-      # trim away <pkg_root_dir> and ".nim"
-      let basename = fname[pkg_root_dir.len..^5]
-      generated_doc_fnames.add basename & ".html"
-      log_debug &"adding {basename}.html"
-
-      for kind, path in walkDir(pkg_root_dir, relative = true):
-        if path.endswith(".idx"):
-          #generated_idx_fnames.add basename & ".idx"
-          #idx_filenames.add path
-          log_debug &"adding {pkg_root_dir} > path"
-          #let chunks = path.split('-', maxsplit=1)
-          #if chunks[0].normalize() == pname:
-          #  result = pkgs_dir / path
-
-  pkgs_doc_files[pname].doc_build_output = all_output
-  pkgs_doc_files[pname].fnames = generated_doc_fnames
-  pkgs_doc_files[pname].idx_fnames = generated_idx_fnames
+  if success:
+    # Find all the doc files
+    for fname in input_fnames:
+        # trim away <pkg_root_dir> and ".nim"
+        let basename = fname[pkg_root_dir.len..^5]
+        generated_doc_fnames.add basename & ".html"
+    pkgs_doc_files[pname].doc_build_output = all_output
+    pkgs_doc_files[pname].fnames = generated_doc_fnames
+    pkgs_doc_files[pname].idx_fnames = generated_idx_fnames
   pkgs_doc_files[pname].doc_build_status =
     if (input_fnames.len == generated_doc_fnames.len): BuildStatus.OK
     else: BuildStatus.Failed
@@ -898,7 +909,8 @@ proc generate_jsondoc(pname: string) {.async.} =
       input_fnames.add fname
 
   for fname in input_fnames:
-    let desc = "nim jsondoc $#" % fname
+    let args = @["jsondoc", "--project", "--docCmd:skip", fname]
+    let desc = "nim " & args.join(" ")
     log_debug "running " & desc
     let run_dir = fname.splitPath.head
     let po = await run_process2(
@@ -907,7 +919,7 @@ proc generate_jsondoc(pname: string) {.async.} =
       run_dir,
       10,
       true,
-      @["jsondoc", fname],
+      args,
     )
     let success = (po.exit_code == 0)
     if success:
@@ -1030,14 +1042,6 @@ proc fetch_and_build_pkg_if_needed_wrapped(pname: string, force_rebuild = false)
   else:
     log_debug "FIXME github_latest_version"
     pkgs_doc_files[pname].version = "?"
-
-  try:
-    let t2 = epochTime()
-    await generate_jsondoc(pname) # this can raise
-    let elapsed = epochTime() - t2
-    stats.gauge("jsondoc_build_time", elapsed)
-  except:
-    log.error("jsondoc failed for " & pname)
 
   let fn = package_parent_dir(pname) & "/nimpkgdir.json"
   save_pkg_metadata(pkgs_doc_files[pname], fn)
@@ -1273,16 +1277,7 @@ router mainRouter:
     if not pkgs.hasKey(pname):
       resp base_page(request, "<p>Package not found</p>")
 
-    most_queried_packages.inc pname
-
-    # Check out pkg and build docs. Modifies pkgs_doc_files
-    asyncCheck fetch_and_build_pkg_if_needed(pname)
-    await wait_build_completion(pname)
-
-    # Show files summary
-    resp base_page(request,
-      generate_doc_files_list_page(pname, pkgs_doc_files[pname])
-    )
+    redirect(uri("/docs/$#/theindex.html" % pname))
 
   get "/docs/@pkg_name/idx_summary.json":
     ## Serve hosted docs for a package: IDX summary
@@ -1315,12 +1310,13 @@ router mainRouter:
     let s = %* {"version": 1, "idx_filenames": idx_filenames}
     resp $s
 
-  #get "/docs/@pkg_name_and_doc_path":
-  get "/docs/@pkg_name/@a?/?@b?/?@c?/?@d?":
+  # Match anything that ends in .idx or .html
+  # The first match is the package name and the second is the path
+  get re"^\/docs\/([^\/]+)\/(.*)$":
     ## Serve hosted docs and idx files for a package
     log_req request
     stats.incr("views")
-    let pname = normalize(@"pkg_name")
+    let pname = normalize(request.matches[0])
     if not pkgs.hasKey(pname):
       resp base_page(request, "<p>Package not found</p>")
 
@@ -1337,11 +1333,10 @@ router mainRouter:
         halt Http400
         ""
 
-    # Horrible hack
-    let messy_path = @"a" / @"b" / @"c" / @"d"
-    let doc_path = strip(messy_path, true, true, {'/'})
-
-    if not (doc_path.endswith(".html") or doc_path.endswith(".idx")):
+    let doc_path = strip(request.matches[1], true, true, {'/'})
+    let (_, _, ext) = doc_path.split_file()
+    echo ext
+    if ext notin [".html", ".idx", ".js", ".css"]:
       log_debug "Refusing to serve doc path $# $#" % [pname, doc_path]
       halt Http400
 
@@ -1351,11 +1346,12 @@ router mainRouter:
     # ..serves:
     # /dev/shm/nim_package_dir/nimgame2/pkgs/nimgame2-0.1.0/nimgame2/audio.html
 
-    let fn = pkg_root_dir / doc_path
+    let fn = pkg_root_dir / "htmldocs" / doc_path
     if not file_exists(fn):
       log_info "error serving $# - not found" % fn
 
       let fn2 = pkg_root_dir / "htmldocs" / doc_path
+      echo "\n\n\n\n", fn2, "\n\n\n\n"
       if not file_exists(fn2):
         log_info "error serving $# - not found" % fn2
 
@@ -1366,12 +1362,12 @@ router mainRouter:
           """ % [pname, pname])
 
     # Serve doc or idx file
-    if doc_path.endswith(".idx"):
-      resp readFile(fn)
-    else:
+    if ext == ".html":
       let head = """<h4>Return to <a href="/"> Nimble Directory</a></h4><h4>Doc files for <a href="/pkg/$#">$#</a></h4>""" % [pname, pname]
       let page = head & fn.readFile()
       resp empty_page(request, page)
+    else:
+      resp readFile(fn)
 
   get "/loader":
     log_req request
@@ -1668,22 +1664,6 @@ Crawl-delay: 300
       except KeyError:
         @[]
     resp %matches
-
-  include "templates/jsondoc_pkg_symbols.tmpl" # generate_jsondoc_pkg_symbols_page
-  post "/searchitem_pkg":
-    ## Search for jsondoc symbol in one package
-    log_req request
-    stats.incr("views")
-    let pname = normalize(@"pkg_name").strip()
-    let query = @("query").strip()
-    let url = pkgs[pname]["url"].str.strip(chars = {'/'}, leading = false)
-    let matches =
-      try:
-        jsondoc_symbols_by_pkg[(pname, query)]
-      except KeyError:
-        @[]
-    let body = generate_jsondoc_pkg_symbols_page(matches, url)
-    resp body
 
   error Http404:
     resp Http404, "Looks you took a wrong turn somewhere."
