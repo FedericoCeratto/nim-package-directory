@@ -776,6 +776,20 @@ proc locate_pkg_root_dir(pname: string): string =
 
   raise newException(Exception, "Root dir for $# not found" % pname)
 
+proc get_version(pname: string): Future[string] {.async.} =
+  ## Gets the version of installed package
+  let pkg_root_dir = locate_pkg_root_dir(pname)
+  let po = await run_process2(
+    nimble_bin_path,
+    "nimble dump --json",
+    pkg_root_dir,
+    10,
+    true,
+    @["dump", "--json"]
+  )
+  if po.exit_code == 0:
+    result = po.output.parseJson()["version"].getStr()
+
 proc build_docs(pname: string) {.async.} =
   ## Build docs
   let pkg_root_dir = locate_pkg_root_dir(pname)
@@ -789,16 +803,19 @@ proc build_docs(pname: string) {.async.} =
   for fname in pkg_root_dir.walkDirRec():
     if fname.endswith(".nim"):
       input_fnames.add fname
-
+  let pkg = pkgs[pname]
   # Compile the whole project at once
-  # TODO: enable --docSeeSrcUrl:<url>
-
   log_debug "running nim doc for $#" % pname
+  # NOTE: Was able to add --git.url and --git.commit to docs to allow see source
+  #       but it would 404 since installing the package flattened it so it would go to
+  #       repo/something.nim instead of the correct repo/src/something.nim/
+  #       Could be solved by moving package into its srcDir first?
   # TODO: Can we safely assume there will be a file with same name as package?
-  let args =  @["doc", "--index:on", "--docCmd:skip", "--project", pname & ".nim"]
+  let args =  @["doc", "--index:on", "--docCmd:skip", "--project",
+                pname & ".nim"]
   let desc = "nim " & args.join(" ")
   let po = await run_process2(
-    nim_bin_path,
+    nimble_bin_path,
     desc,
     pkg_root_dir,
     10,
@@ -820,9 +837,6 @@ proc build_docs(pname: string) {.async.} =
         # trim away <pkg_root_dir> and ".nim"
         let basename = fname[pkg_root_dir.len..^5]
         generated_doc_fnames.add basename & ".html"
-    echo "\n\n\n"
-    echo generated_doc_fnames
-    echo "\n\n\n"
     pkgs_doc_files[pname].doc_build_output = all_output
     pkgs_doc_files[pname].fnames = generated_doc_fnames
     pkgs_doc_files[pname].idx_fnames = generated_idx_fnames
@@ -1021,20 +1035,7 @@ proc fetch_and_build_pkg_if_needed_wrapped(pname: string, force_rebuild = false)
     pkgs_doc_files[pname].doc_build_status
   )
 
-  if pkgs[pname].hasKey("github_latest_version"):
-    pkgs_doc_files[pname].version = pkgs[pname][
-        "github_latest_version"].str.strip
-  else:
-    log_debug "FIXME github_latest_version"
-    pkgs_doc_files[pname].version = "?"
-
-  try:
-    let t2 = epochTime()
-    await generate_jsondoc(pname) # this can raise
-    let elapsed = epochTime() - t2
-    stats.gauge("jsondoc_build_time", elapsed)
-  except:
-    log.error("jsondoc failed for " & pname)
+  pkgs_doc_files[pname].version = await pname.get_version()
 
   let fn = package_parent_dir(pname) & "/nimpkgdir.json"
   save_pkg_metadata(pkgs_doc_files[pname], fn)
@@ -1657,22 +1658,6 @@ Crawl-delay: 300
       except KeyError:
         @[]
     resp %matches
-
-  include "templates/jsondoc_pkg_symbols.tmpl" # generate_jsondoc_pkg_symbols_page
-  get "/searchitem_pkg":
-    ## Search for jsondoc symbol in one package
-    log_req request
-    stats.incr("views")
-    let pname = normalize(@"pkg_name").strip()
-    let query = @("query").strip()
-    let url = pkgs[pname]["url"].str.strip(chars = {'/'}, leading = false)
-    let matches =
-      try:
-        jsondoc_symbols_by_pkg[(pname, query)]
-      except KeyError:
-        @[]
-    let body = generate_jsondoc_pkg_symbols_page(matches, url)
-    resp body
 
   error Http404:
     resp Http404, "Looks you took a wrong turn somewhere."
