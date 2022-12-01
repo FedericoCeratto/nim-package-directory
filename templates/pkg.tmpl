@@ -113,6 +113,15 @@
           <a href="/docs/${pname}"><button class="btn pkg-btn">Hosted docs</button></a>
         #end if
 
+
+        <form action="/searchitem_pkg" method="GET" role="search" class="input-group" id="searchitem">
+          <input id="search-pkg" name="query" type="search"  placeholder="Search Symbols in ${pname}" value="" minlength="1" autofocus required>
+          <input name="pkg_name" type="hidden" value="${pname}">
+        </form>
+        <div class="search-content">
+            <div id="searchitem_result"></div>
+        </div>
+
     </div>
   </div>
 </div>
@@ -139,13 +148,17 @@
           });
           setInterval(reload_rebuildbtn, 5000);
           reload_rebuildbtn();
+
+          $$("#searchitem").submit(function(event) {
+            var data = $$("#searchitem :input").serializeArray();
+            $$("#searchitem_result").load("/searchitem_pkg", data);
+            event.preventDefault();
+          });
         </script>
-
       </div>
     </div>
       </div>
     </div>
-
   </div>
 </div>
 

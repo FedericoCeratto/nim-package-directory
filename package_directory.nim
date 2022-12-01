@@ -909,7 +909,8 @@ proc generate_jsondoc(pname: string) {.async.} =
       input_fnames.add fname
 
   for fname in input_fnames:
-    let desc = "nim jsondoc $#" % fname
+    let args = @["jsondoc", "--project", "--docCmd:skip", fname]
+    let desc = "nim " & args.join(" ")
     log_debug "running " & desc
     let run_dir = fname.splitPath.head
     let po = await run_process2(
@@ -918,7 +919,7 @@ proc generate_jsondoc(pname: string) {.async.} =
       run_dir,
       10,
       true,
-      @["jsondoc", fname],
+      args,
     )
     let success = (po.exit_code == 0)
     if success:
@@ -1035,7 +1036,12 @@ proc fetch_and_build_pkg_if_needed_wrapped(pname: string, force_rebuild = false)
     pkgs_doc_files[pname].doc_build_status
   )
 
-  pkgs_doc_files[pname].version = await pname.get_version()
+  if pkgs[pname].hasKey("github_latest_version"):
+    pkgs_doc_files[pname].version = pkgs[pname][
+        "github_latest_version"].str.strip
+  else:
+    log_debug "FIXME github_latest_version"
+    pkgs_doc_files[pname].version = "?"
 
   let fn = package_parent_dir(pname) & "/nimpkgdir.json"
   save_pkg_metadata(pkgs_doc_files[pname], fn)
