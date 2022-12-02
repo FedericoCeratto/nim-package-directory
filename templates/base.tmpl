@@ -14,9 +14,8 @@
   <link rel="stylesheet" href="/css/bootstrap.min.css">
   <link rel="stylesheet" href="/css/style.css">
   <link rel="stylesheet" href="/css/an-old-hope.min.css">
+  <link rel="stylesheet" href="/css/nimstyle.css">
   <script src="/js/jquery.min.js"></script>
-  <script src="/js/highlight.min.js"></script>
-  <script>hljs.initHighlightingOnLoad();</script>
 </head>
 <body>
 <nav class="navbar navbar-expand-lg fixed-top py-3">
@@ -119,7 +118,10 @@
     } else {
       document.body.classList.remove("dark-theme");
     }
+    document.documentElement.setAttribute("data-theme", theme)
+    localStorage.setItem("theme", theme)
   }
+
   set_dark_mode();
 
   $$(document).ready(function(){
@@ -127,12 +129,13 @@
   });
 
   function toggle_dark_mode() {
+    let new_theme = ""
     if (localStorage.getItem("theme") == "dark") {
-      localStorage.setItem('theme', 'light');
+      new_theme = "light"
     } else {
-      localStorage.setItem('theme', 'dark');
+      new_theme = "dark"
     }
-    set_dark_mode();
+    set_theme(new_theme);
   }
 </script>
 </body>

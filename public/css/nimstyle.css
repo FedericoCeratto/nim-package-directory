@@ -1,0 +1,76 @@
+/* Variables from here https://github.com/nim-lang/Nim/blob/devel/doc/nimdoc.css */
+
+:root {
+  --primary-background: #171921;
+  --secondary-background: #1e202a;
+  --third-background: #2b2e3b;
+  --info-background: #008000;
+  --warning-background: #807000;
+  --error-background: #c03000;
+  --border: #0e1014;
+  --text: #fff;
+  --anchor: #8be9fd;
+  --anchor-focus: #8be9fd;
+  --input-focus: #8be9fd;
+  --strong: #bd93f9;
+  --hint: #7A7C85;
+  --keyword: #ff79c6;
+  --identifier: #f8f8f2;
+  --comment: #6272a4;
+  --operator: #ff79c6;
+  --punctuation: #f8f8f2;
+  --other: #f8f8f2;
+  --escapeSequence: #bd93f9;
+  --number: #bd93f9;
+  --literal: #f1fa8c;
+  --program: #9090c0;
+  --option: #90b010;
+  --raw-data: #8be9fd;
+}
+
+/* From nim */
+.highlight .pl-c,
+.highlight .pl-ch,
+.highlight .pl-cp,
+.highlight .pl-cpf,
+.highlight .pl-cs,
+.highlight .pl-cm,
+.highlight .pl-cm { color: var(--comment); font-style: italic } /* Comment.Hashbang */
+
+
+
+.highlight .pl-hll { background-color: var(--background) }
+.highlight  { background: var(--background); }
+.highlight .pl-k,
+.highlight .pl-kp,
+.highlight .pl-kr { color: var(--keyword); font-weight: bold } /* Keyword */
+.highlight .pl-o { color: var(--operator) } /* Operator */
+
+.highlight .pl-kc { color: var(--literal); font-weight: bold } /* Keyword.Constant */
+
+.highlight .pl-kt,
+.highlight .pl-c1 { color: var(--identifier) }
+.highlight .pl-s,
+.highlight .pl-sx,
+.highlight .pl-sd,
+.highlight .pl-s2,
+.highlight .pl-sr,
+.highlight .pl-s1,
+.highlight .pl-ss
+{ color: var(--literal) } /* Literal.String */
+
+.highlight .pl-nv { color: var(--identifier) } /* Name.Variable */
+.highlight .pl-w { color: #bbbbbb } /* Text.Whitespace */
+
+.highlight .pl-mb,
+.highlight .pl-mf,
+.highlight .pl-mh,
+.highlight .pl-mi,
+.highlight .pl-mo,
+.highlight .pl-il,
+.highlight .pl-m
+{ color: var(--number) }
+
+.highlight .pl-sa, .highlight .pl-sb  { color: var(--punctuation) } /* Literal.String.Affix */
+.highlight .pl-sc, .highlight .pl-dl { color: var(--literal) } /* Literal.String.Char */
+
