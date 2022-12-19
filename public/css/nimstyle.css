@@ -37,6 +37,7 @@
 .highlight .pl-cm,
 .highlight .pl-cm { color: var(--comment); font-style: italic } /* Comment.Hashbang */
 
+.highlight .pl-e { color: var(--escapeSequence); }
 
 
 .highlight .pl-hll { background-color: var(--background) }
