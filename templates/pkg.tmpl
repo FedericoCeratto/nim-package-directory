@@ -36,7 +36,9 @@
     <div class="col-3" id="meta-section">
       <div class="container box rounded p-3">
         #if pkg.has_key("github_owner"):
-          <p class="pkg-author"><strong>Author:</strong> <a href="https://github.com/${pkg["github_owner"].str}">${pkg["github_owner"].str}</a></p>
+          <p class="pkg-author"><strong>Author:</strong>
+            <a href="https://github.com/${pkg["github_owner"].str}">${pkg["github_owner"].str}</a>
+          </p>
         #end
 
         #if pkg.has_key("github_latest_versions_str"):
@@ -86,66 +88,16 @@
           #end
         </p>
 
-        <p>
-          <a href="/ci/badges/${package_name}/nimdevel/output.html">
-            <img class="slickbadge" id="versionbadge">
-          </a>
-          <a href="/ci/badges/${package_name}/nimdevel/output.html">
-            <img class="slickbadge" id="statusbadge">
-          </a>
-          <a href="/ci/badges/${package_name}/nimdevel/doc_build_output.html">
-            <img class="slickbadge" id="docstatusbadge">
-          </a>
-        </p>
-        <p class="build-info" id="last_build_time"></p>
-        <button class="btn pkg-btn" id="rebuildbtn">Rebuild now</button>
         #if pkg.has_key("web"):
-          <a href="${pkg["web"].str}" ><button class="btn pkg-btn">Project website</button></a>
+        <p> <a href="${pkg["web"].str}" >Project website</a> </p>
         #end
         #if pkg.has_key("doc"):
-          <a href="${pkg["doc"].str}"><button class="btn pkg-btn">Docs</button></a>
+        <p> <a href="${pkg["doc"].str}">Docs</a> </p>
         #end if
-        #let url = pkg["url"].str
-        #if url.startswith("https://github.com/") or url.startswith("http://github.com/") or url.startswith("git"):
-          <a href="/docs/${package_name}"><button class="btn pkg-btn">Hosted docs</button></a>
-        #end if
-      </div>
-      <div class="container box rounded p-3" style="margin-top: 12px;">
-        <form action="/searchitem_pkg" method="GET" role="search" class="input-group" id="searchitem">
-          <input id="search-pkg" name="query" type="search"  placeholder="Search symbols in ${package_name}" value="" minlength="1" required>
-          <input name="pkg_name" type="hidden" value="${package_name}">
-        </form>
-        <div class="search-content">
-          <div id="searchitem_result"></div>
-        </div>
       </div>
     </div>
   </div>
 </div>
-<script>
-  function reload_badges() {
-    $$("#versionbadge").attr("src", "/ci/badges/${package_name}/version.svg");
-    $$("#statusbadge").attr("src", "/ci/badges/${package_name}/nimdevel/status.svg");
-    $$("#docstatusbadge").attr("src", "/ci/badges/${package_name}/nimdevel/docstatus.svg");
-  }
-  function reload_rebuildbtn() {
-    $$.getJSON( "/api/v1/status/${package_name}", function(resp) {
-      if (resp.status == "building") {
-        $$("#rebuildbtn").html("<i class='fa fa-spinner fa-spin'></i> Rebuilding");
-      } else {
-        $$("#rebuildbtn").html("Rebuild Now");
-        $$("#last_build_time").html("<strong>Last build time: </strong>" + resp.build_time);
-        reload_badges();
-      }
-    });
-  }
-  $$("#rebuildbtn").click(function() {
-    $$.post("/ci/rebuild/${package_name}");
-    $$("#rebuildbtn").html("<i class='fa fa-spinner fa-spin'></i> Rebuilding");
-  });
-  setInterval(reload_rebuildbtn, 5000);
-  reload_rebuildbtn();
-</script>
 <script>
   $$("#searchitem").submit(function(event) {
     var data = $$("#searchitem :input").serializeArray();
