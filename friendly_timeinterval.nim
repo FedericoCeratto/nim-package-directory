@@ -1,6 +1,5 @@
 
-import times
-import strutils
+import std/[times, strutils]
 
 proc toFriendlyInterval*(i: TimeInterval, approx = 10): string =
   ## Convert TimeInterval to human-friendly description
@@ -38,7 +37,7 @@ proc toFriendlyInterval*(i: TimeInterval, approx = 10): string =
 
 
 proc toNonLinearInterval(a, b: Time): TimeInterval =
-  ## 
+  ##
   const
     minutes_s = 60
     hours_s = minutes_s * 60

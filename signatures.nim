@@ -25,18 +25,20 @@
 #   Sign Git tags
 #   Sign tarball?
 
-import base64
-import json
-import httpclient
-import os
-import osproc
-import streams
-import strutils,
-  sequtils
-from tables import keys, pairs
-import tables
-import times
+import std/[
+  base64,
+  httpclient,
+  json,
+  os,
+  osproc,
+  streams,
+  strutils,
+  sequtils,
+  tables,
+  times
+]
 import tempfile
+
 from sequtils import toSeq
 from algorithm import sorted
 
@@ -90,7 +92,6 @@ proc serialize(node: JsonNode): string =
   ## Serialize node
   ## Keys are sorted lexicographically, the indentation is two whitespaces,
   ## there are no newlines and spaces at the beginning and the end.
-
   result = newStringOfCap(node.len shl 1)
   to_s_ugly(result, node)
 
@@ -255,7 +256,6 @@ proc download_file*(url, fname: string, check_modified_time=true,
     # echo "Fetching ", url
     writeFile(fname, newHttpClient().getContent(url))
     return true
-
 
 
 

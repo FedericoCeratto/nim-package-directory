@@ -1,12 +1,52 @@
 #? stdtmpl | standard
 #proc generate_search_box(value=""): string =
 #  result = ""
-<header class="hero">
-    <h4 style="text-align: center;">Nim package directory</h4>
-     <form method="GET" action="/search" id="searchbox">
-        <input id="search" name="query" type="text"  placeholder="Search Package" type="search" value="$value" minlength="1" autofocus required/>
-    </form>
-</header>
+<div class="container">
+  <div class="row pt-10 mb-5 align-content-center">
+    <div class="col-lg-8 align-self-center text-center">
+      <h4 class="h3 text-muted">&mdash; Nim's Ecosystem</h4>
+      <h1 class="display-3 fw-bold">Efficient, expressive, elegant</h1>
+      <p class="fw-normal h2 mb-4">Discover Nim's ecosystem of packages, libraries,<br>frameworks, and tools.</p>
+      <div class="row">
+        <div class="col-12 spotlight position-relative">
+          <form method="GET" action="/search" id="searchbox">
+            <input id="search" name="query" type="text" class="border-radius-full w-100" placeholder="Search for packages..." value="$value">
+          </form>
+        </div>
+      </div>
+      <div class="mt-4 tags-area">
+        <a href="/search?query=embedded systems">embedded systems</a>
+        <a href="/search?query=web framework">web frameworks</a>
+        <a href="/search?query=iot">IoT</a>
+        <a href="/search?query=game engine">game engines</a>
+        <a href="/search?query=command line">command line</a>
+        <a href="/search?query=parser">parser</a>
+        <a href="/search?query=ai">AI</a>
+        <a href="/search?query=network">network</a>
+        <a href="/search?query=yaml">yaml</a>
+        <a href="/search?query=frontend">frontend</a>
+        <a href="/search?query=template engine">template engines</a>
+        <a href="/search?query=javascript">javascript</a>
+        <a href="/search?query=wrapper">wrapper</a>
+        <a href="/search?query=graphics">graphics</a>
+      </div>
+    </div>
+    <div class="col-lg-4 align-self-center" id="art">
+      <img src="/img/01.png" width="415px" alt="">
+    </div>
+  </div>
+</div>
+<script>
+spotlight = document.querySelector('.spotlight input');
+document.addEventListener('keydown', function(e) {
+  if (e.keyCode == 191) {
+    if (document.activeElement !== spotlight) {
+      e.preventDefault();
+      spotlight.focus();
+    }
+  }
+});
+</script>
 
 #end
 #
@@ -15,114 +55,113 @@
 
 ${generate_search_box()}
 
-
-
-  <div class="upper">
-    <div class="container">
-    <div id="welcome" class="twelve column">
-      <p class="w-message"><span>Developer?</span> Search for packages or jump directly to a package page.<br/>
-    Nim Package Directory generates and hosts documentation for packages.</p>
-    <p class="w-message"><span>Package maintainer?</span> <a href="/about.html">Learn</a> what this service can do for you.</p>
-    </div>
+<div class="container py-8">
+  <div class="row">
+    <div class="col-12">
+      <h1 class="fw-bold mb-2">Trending Packages</h1>
     </div>
   </div>
-
-<div class="container showcase">
-    <div class="col pkg-cat">
-      <h3> Trending packages</h3>
-      <div class="twelve columns">
-        # for i in 0 .. min(8, len(github_trending))-1:
-        # let pkg = github_trending[i]
-        <a href="/pkg/${pkg["name"].str}">
-        <div id="showcase" class="six columns">
-          <h4>${pkg["name"].str}</h4>
-          <p><span class="stars"><i class="fas fa-star"></i>${pkg["stargazers_count"].getInt}</span></p>
-          <p><span class="author"> by <a href="${pkg["owner"]["html_url"].str}"">${pkg["owner"]["login"].str}</a></span></p>
-          <!-- <p class="desc">Updated: ${pkg["update_age"].str}</p> -->
-        </div>
-        </a>
-        # end
+  <div class="row g-4 mb-4">
+    # for i in 0 .. min(9, github_trending.len)-1:
+    # let pkg = github_trending[i]
+    <div class="col-lg-4 col-md-6">
+      <div class="box box-pkg rounded p-3" stars="${pkg["stargazers_count"].getInt}">
+        <h3 class="lh-1 display-1 mb-2"><a href="/pkg/${pkg["name"].str}">${pkg["name"].str}</a></h3>
+        <p class="mb-0 pb-0 overflow-hidden h-14" style="margin-bottom:0">${pkg["description"].str}</p>
+        <ul class="package-box-meta-foot mt-1">
+          <li class="text-gray">
+            <svg width="16" height="16" viewBox="0 0 16 16" style="display:inline-block;vertical-align:text-bottom"><path fill-rule="evenodd" d="M10.5 5a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0zm.061 3.073a4 4 0 10-5.123 0 6.004 6.004 0 00-3.431 5.142.75.75 0 001.498.07 4.5 4.5 0 018.99 0 .75.75 0 101.498-.07 6.005 6.005 0 00-3.432-5.142z"></path></svg>
+            <a href="${pkg["owner"]["html_url"].str}">${pkg["owner"]["login"].str}</a>
+          </li>
+          <li>
+            <svg width="16" height="16" viewBox="0 0 16 16" style="display:inline-block;vertical-align:text-bottom"><path fill-rule="evenodd" d="M2 2.5A2.5 2.5 0 014.5 0h8.75a.75.75 0 01.75.75v12.5a.75.75 0 01-.75.75h-2.5a.75.75 0 110-1.5h1.75v-2h-8a1 1 0 00-.714 1.7.75.75 0 01-1.072 1.05A2.495 2.495 0 012 11.5v-9zm10.5-1V9h-8c-.356 0-.694.074-1 .208V2.5a1 1 0 011-1h8zM5 12.25v3.25a.25.25 0 00.4.2l1.45-1.087a.25.25 0 01.3 0L8.6 15.7a.25.25 0 00.4-.2v-3.25a.25.25 0 00-.25-.25h-3.5a.25.25 0 00-.25.25z"></path></svg>
+            <a href="${pkg["url"].str}">Repository</a>
+          </li>
+          <li class="text-gray">
+            <svg width="16" height="16" viewBox="0 0 16 16" style="display:inline-block;vertical-align:text-bottom"><path fill-rule="evenodd" d="M8.75.75a.75.75 0 00-1.5 0V2h-.984c-.305 0-.604.08-.869.23l-1.288.737A.25.25 0 013.984 3H1.75a.75.75 0 000 1.5h.428L.066 9.192a.75.75 0 00.154.838l.53-.53-.53.53v.001l.002.002.002.002.006.006.016.015.045.04a3.514 3.514 0 00.686.45A4.492 4.492 0 003 11c.88 0 1.556-.22 2.023-.454a3.515 3.515 0 00.686-.45l.045-.04.016-.015.006-.006.002-.002.001-.002L5.25 9.5l.53.53a.75.75 0 00.154-.838L3.822 4.5h.162c.305 0 .604-.08.869-.23l1.289-.737a.25.25 0 01.124-.033h.984V13h-2.5a.75.75 0 000 1.5h6.5a.75.75 0 000-1.5h-2.5V3.5h.984a.25.25 0 01.124.033l1.29.736c.264.152.563.231.868.231h.162l-2.112 4.692a.75.75 0 00.154.838l.53-.53-.53.53v.001l.002.002.002.002.006.006.016.015.045.04a3.517 3.517 0 00.686.45A4.492 4.492 0 0013 11c.88 0 1.556-.22 2.023-.454a3.512 3.512 0 00.686-.45l.045-.04.01-.01.006-.005.006-.006.002-.002.001-.002-.529-.531.53.53a.75.75 0 00.154-.838L13.823 4.5h.427a.75.75 0 000-1.5h-2.234a.25.25 0 01-.124-.033l-1.29-.736A1.75 1.75 0 009.735 2H8.75V.75zM1.695 9.227c.285.135.718.273 1.305.273s1.02-.138 1.305-.273L3 6.327l-1.305 2.9zm10 0c.285.135.718.273 1.305.273s1.02-.138 1.305-.273L13 6.327l-1.305 2.9z"></path></svg>
+            ${pkg["license"].str}
+          </li>
+        </ul>
       </div>
     </div>
-
-    <div class="col pkg-cat">
-      <h3> New packages</h3>
-      <div class="twelve columns">
-        # for p in new_packages:
-        <a href="/pkg/${p["name"].str}">
-            <!-- TODO: Latest version -->
-            <!-- <span class="version">v0.1.1</span> -->
-        <div id="showcase" class="six columns">
-          <h4>${p["name"].str}</h4>
-          # if p.hasKey("web"):
-          <a href="${p["web"].str}">
-            Visit website
-          </a>
-          # end
-        </p>
-          <p class="desc">${p["description"].str}</p>
-        </div>
-        </a>
-   
-          <!-- TODO: The info below -->
-          <!-- <figure class="avatar avatar-xs person" data-initial="DP">
-            <img src="img/avatar-1.png" />
-          </figure>
-          <span class="username">dom96</span>
-          <span class="stargazers"><i class="fa fa-star" title="Stargazers"></i>456</span>
-          <span class="stargazers"><i class="fa fa-clock-o" title="Last updated"></i>2 minutes ago</span> -->
-
-          <!-- TODO: Links for these buttons. -->
-          <!-- <a class="btn input-group-btn">
-            <i class="fa fa-github"></i> Repo
-          </a>
-          <a class="btn input-group-btn">
-            <i class="fa fa-book"></i> Docs
-          </a> -->
-        # end
-      </div>
-    </div>
-
-    <div class="col pkg-cat">    
-      <h3>Most queried</h3>
-      <div class="twelve columns">
-      # for p in most_queried_packages:
-      <a href="/pkg/${p["name"].str}">
-      <div id="showcase" class="six columns">
-        <h4>${p["name"].str}</h4>
-        <p><span class="author">
-            <!-- TODO: Latest version -->
-            <!-- <span class="version">v0.1.1</span> -->
-        # if p.hasKey("web"):
-          <a href="${p["web"].str}">
-           Project website
-          </a>
-        #end
-        </span></p>
-        <p class="desc">${p["description"].str}</p>
-      </div>
-      </a>
-  
-          <!-- TODO: The info below -->
-          <!-- <figure class="avatar avatar-xs person" data-initial="DP">
-            <img src="img/avatar-1.png" />
-          </figure>
-          <span class="username">dom96</span>
-          <span class="stargazers"><i class="fa fa-star" title="Stargazers"></i>456</span>
-          <span class="stargazers"><i class="fa fa-clock-o" title="Last updated"></i>2 minutes ago</span> -->
-   
-  
-          <!-- TODO: Links for these buttons. -->
-          <!-- <a class="btn input-group-btn">
-            <i class="fa fa-github"></i> Repo
-          </a>
-          <a class="btn input-group-btn">
-            <i class="fa fa-book"></i> Docs
-          </a> -->
-   
-      # end
-    </div>
+    # end
+  </div>
 </div>
 
+<div class="container py-8 mt-4">
+  <div class="row">
+    <div class="col-12">
+      <h2 class="fw-bold mb-2">New Packages</h2>
+    </div>
+  </div>
+  <div class="row g-4">
+    # for i in 0 .. min(9, new_packages.len)-1:
+    # let pkg = new_packages[i]
+    <div class="col-lg-4 col-md-6">
+      <div class="box box-pkg rounded p-3" stars="">
+        <h3 class="lh-1 display-1 mb-2"><a href="/pkg/${pkg["name"].str}">${pkg["name"].str}</a></h3>
+        <p class="mb-0 pb-0" style="margin-bottom:0">${pkg["description"].str}</p>
+        <ul class="package-box-meta-foot mt-1">
+          <li class="text-gray">
+            <svg width="16" height="16" viewBox="0 0 16 16" style="display:inline-block;vertical-align:text-bottom"><path fill-rule="evenodd" d="M10.5 5a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0zm.061 3.073a4 4 0 10-5.123 0 6.004 6.004 0 00-3.431 5.142.75.75 0 001.498.07 4.5 4.5 0 018.99 0 .75.75 0 101.498-.07 6.005 6.005 0 00-3.432-5.142z"></path></svg>
+            # let url = pkg["url"].str.strip(false, true, {'/'}).rsplit('/', maxsplit=2)
+            # if url.len == 3:
+            <a href="${url[0] & "/" & url[1]}">${url[1]}</a>
+            # else:
+            <a href="#">Unknown</a>
+            # end
+          </li>
+          <li>
+            <svg width="16" height="16" viewBox="0 0 16 16" style="display:inline-block;vertical-align:text-bottom"><path fill-rule="evenodd" d="M2 2.5A2.5 2.5 0 014.5 0h8.75a.75.75 0 01.75.75v12.5a.75.75 0 01-.75.75h-2.5a.75.75 0 110-1.5h1.75v-2h-8a1 1 0 00-.714 1.7.75.75 0 01-1.072 1.05A2.495 2.495 0 012 11.5v-9zm10.5-1V9h-8c-.356 0-.694.074-1 .208V2.5a1 1 0 011-1h8zM5 12.25v3.25a.25.25 0 00.4.2l1.45-1.087a.25.25 0 01.3 0L8.6 15.7a.25.25 0 00.4-.2v-3.25a.25.25 0 00-.25-.25h-3.5a.25.25 0 00-.25.25z"></path></svg>
+            <a href="${pkg["url"].str}">Repository</a>
+          </li>
+          <li class="text-gray">
+            <svg width="16" height="16" viewBox="0 0 16 16" style="display:inline-block;vertical-align:text-bottom"><path fill-rule="evenodd" d="M8.75.75a.75.75 0 00-1.5 0V2h-.984c-.305 0-.604.08-.869.23l-1.288.737A.25.25 0 013.984 3H1.75a.75.75 0 000 1.5h.428L.066 9.192a.75.75 0 00.154.838l.53-.53-.53.53v.001l.002.002.002.002.006.006.016.015.045.04a3.514 3.514 0 00.686.45A4.492 4.492 0 003 11c.88 0 1.556-.22 2.023-.454a3.515 3.515 0 00.686-.45l.045-.04.016-.015.006-.006.002-.002.001-.002L5.25 9.5l.53.53a.75.75 0 00.154-.838L3.822 4.5h.162c.305 0 .604-.08.869-.23l1.289-.737a.25.25 0 01.124-.033h.984V13h-2.5a.75.75 0 000 1.5h6.5a.75.75 0 000-1.5h-2.5V3.5h.984a.25.25 0 01.124.033l1.29.736c.264.152.563.231.868.231h.162l-2.112 4.692a.75.75 0 00.154.838l.53-.53-.53.53v.001l.002.002.002.002.006.006.016.015.045.04a3.517 3.517 0 00.686.45A4.492 4.492 0 0013 11c.88 0 1.556-.22 2.023-.454a3.512 3.512 0 00.686-.45l.045-.04.01-.01.006-.005.006-.006.002-.002.001-.002-.529-.531.53.53a.75.75 0 00.154-.838L13.823 4.5h.427a.75.75 0 000-1.5h-2.234a.25.25 0 01-.124-.033l-1.29-.736A1.75 1.75 0 009.735 2H8.75V.75zM1.695 9.227c.285.135.718.273 1.305.273s1.02-.138 1.305-.273L3 6.327l-1.305 2.9zm10 0c.285.135.718.273 1.305.273s1.02-.138 1.305-.273L13 6.327l-1.305 2.9z"></path></svg>
+            ${pkg["license"].str}
+          </li>
+        </ul>
+      </div>
+    </div>
+    # end
+  </div>
+</div>
+
+<div class="container py-8 mt-4">
+  <div class="row">
+    <div class="col-12">
+      <h2 class="fw-bold mb-2">Most Queried</h2>
+    </div>
+  </div>
+  <div class="row g-4">
+    # for i in 0 .. min(9, most_queried_packages.len)-1:
+    # let pkg = most_queried_packages[i]
+    <div class="col-lg-4 col-md-6">
+      <div class="box box-pkg rounded p-3" stars="">
+        <h3 class="lh-1 display-1 mb-2"><a href="/pkg/${pkg["name"].str}">${pkg["name"].str}</a></h3>
+        <p class="mb-0 pb-0" style="margin-bottom:0">${pkg["description"].str}</p>
+        <ul class="package-box-meta-foot mt-1">
+          <li class="text-gray">
+            <svg width="16" height="16" viewBox="0 0 16 16" style="display:inline-block;vertical-align:text-bottom"><path fill-rule="evenodd" d="M10.5 5a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0zm.061 3.073a4 4 0 10-5.123 0 6.004 6.004 0 00-3.431 5.142.75.75 0 001.498.07 4.5 4.5 0 018.99 0 .75.75 0 101.498-.07 6.005 6.005 0 00-3.432-5.142z"></path></svg>
+            # let url = pkg["url"].str.strip(false, true, {'/'}).rsplit('/', maxsplit=2)
+            # if url.len == 3:
+            <a href="${url[0] & "/" & url[1]}">${url[1]}</a>
+            # else:
+            <a href="#">Unknown</a>
+            # end
+          </li>
+          <li>
+            <svg width="16" height="16" viewBox="0 0 16 16" style="display:inline-block;vertical-align:text-bottom"><path fill-rule="evenodd" d="M2 2.5A2.5 2.5 0 014.5 0h8.75a.75.75 0 01.75.75v12.5a.75.75 0 01-.75.75h-2.5a.75.75 0 110-1.5h1.75v-2h-8a1 1 0 00-.714 1.7.75.75 0 01-1.072 1.05A2.495 2.495 0 012 11.5v-9zm10.5-1V9h-8c-.356 0-.694.074-1 .208V2.5a1 1 0 011-1h8zM5 12.25v3.25a.25.25 0 00.4.2l1.45-1.087a.25.25 0 01.3 0L8.6 15.7a.25.25 0 00.4-.2v-3.25a.25.25 0 00-.25-.25h-3.5a.25.25 0 00-.25.25z"></path></svg>
+            <a href="${pkg["url"].str}">Repository</a>
+          </li>
+          <li class="text-gray">
+            <svg width="16" height="16" viewBox="0 0 16 16" style="display:inline-block;vertical-align:text-bottom"><path fill-rule="evenodd" d="M8.75.75a.75.75 0 00-1.5 0V2h-.984c-.305 0-.604.08-.869.23l-1.288.737A.25.25 0 013.984 3H1.75a.75.75 0 000 1.5h.428L.066 9.192a.75.75 0 00.154.838l.53-.53-.53.53v.001l.002.002.002.002.006.006.016.015.045.04a3.514 3.514 0 00.686.45A4.492 4.492 0 003 11c.88 0 1.556-.22 2.023-.454a3.515 3.515 0 00.686-.45l.045-.04.016-.015.006-.006.002-.002.001-.002L5.25 9.5l.53.53a.75.75 0 00.154-.838L3.822 4.5h.162c.305 0 .604-.08.869-.23l1.289-.737a.25.25 0 01.124-.033h.984V13h-2.5a.75.75 0 000 1.5h6.5a.75.75 0 000-1.5h-2.5V3.5h.984a.25.25 0 01.124.033l1.29.736c.264.152.563.231.868.231h.162l-2.112 4.692a.75.75 0 00.154.838l.53-.53-.53.53v.001l.002.002.002.002.006.006.016.015.045.04a3.517 3.517 0 00.686.45A4.492 4.492 0 0013 11c.88 0 1.556-.22 2.023-.454a3.512 3.512 0 00.686-.45l.045-.04.01-.01.006-.005.006-.006.002-.002.001-.002-.529-.531.53.53a.75.75 0 00.154-.838L13.823 4.5h.427a.75.75 0 000-1.5h-2.234a.25.25 0 01-.124-.033l-1.29-.736A1.75 1.75 0 009.735 2H8.75V.75zM1.695 9.227c.285.135.718.273 1.305.273s1.02-.138 1.305-.273L3 6.327l-1.305 2.9zm10 0c.285.135.718.273 1.305.273s1.02-.138 1.305-.273L13 6.327l-1.305 2.9z"></path></svg>
+            ${pkg["license"].str}
+          </li>
+        </ul>
+      </div>
+    </div>
+    # end
+  </div>
+</div>
 
 <!-- TODO: Recently updated -->

@@ -2,12 +2,11 @@
 #proc generate_pkg_page(pkg: Pkg): string =
 #  result = ""
 
-# let pname = pkg["name"].str
+# let package_name = pkg["name"].str
 
-
-
-<div class="container large" id="pkg-info">
-    <h3 class="pkg-title">${pname}</h3>
+<div class="container">
+  <div class="container pt-10">
+    <h3 class="mb-3 fw-bold display-6 pt-4">${package_name}</h3>
     <p class="tags">
       #for tag in pkg["tags"]:
       <span class="tag">
@@ -16,156 +15,141 @@
         </button></a>
       </span>
       #end for
-      </p>
+    </p>
     <p class="pkg-desc">${pkg["description"].str}</p>
     <a title="Copy" onclick="document.querySelector('#cmd').select();document.execCommand('copy');" alt="Copy on clipboard">
-    <i class="fa fa-copy"></i></a> <input id="cmd" onclick="this.select();" value="nimble install ${pname}" readonly="">
-    <p><small>Need help? Read <a href="https://github.com/nim-lang/nimble#creating-packages">Nimble</a></small></p>
+      <i class="fa fa-copy"></i>
+    </a>
+    <input id="cmd" onclick="this.select();" value="nimble install ${package_name}" readonly="">
+    <br>
+    <small style="font-size: 0.8rem;">Need help? Read <a href="https://github.com/nim-lang/nimble#creating-packages">Nimble</a></small>
+  </div>
 
-
-
-  <div class="twelve columns" id="pkg-content">
-    <div class="nine columns" id="readme-section">
+  <div class="container row pt-4" id="pkg-content">
+    <div class="col-8 box rounded p-3" id="readme-section">
       #if pkg.has_key("github_readme"):
         ${pkg["github_readme"].str}
       #else:
         <p class="no-readme"><i>The package README is not present or from an unsupported forge.</i></p>
       #end
     </div>
-
-    <div class="three columns" id="meta-section">
+    <div class="col-3" id="meta-section">
+      <div class="container box rounded p-3">
         #if pkg.has_key("github_owner"):
           <p class="pkg-author"><strong>Author:</strong> <a href="https://github.com/${pkg["github_owner"].str}">${pkg["github_owner"].str}</a></p>
         #end
 
         #if pkg.has_key("github_latest_versions_str"):
           #if pkg["github_latest_versions_str"].getElems().len > 0:
-          <p><strong>Latest versions:</strong>
-          #  for semver in pkg["github_latest_versions_str"].getElems():
+            <p><strong>Latest versions:</strong>
+            #for semver in pkg["github_latest_versions_str"].getElems():
               <span class="vers">${semver.str}</span>
-          #  end
-          </p>
-          #else:
-          <p><strong>No tagged versions available</strong></p>
+            #end
+            </p>
+            #else:
+            <p><strong>No tagged versions available</strong></p>
           #end
-      #end
-
+        #end
         <p>
-
-       <strong>Licence:</strong>
-    #     let licns = pkg["license"].str.toLowerAscii.strip
-    #     if licns == "mit":
+          <strong>Licence:</strong>
+          #let licns = pkg["license"].str.toLowerAscii.strip
+          #if licns == "mit":
             <a href="https://opensource.org/licenses/MIT">MIT</a>
-    #     elif licns == "apache2" or licns == "apache":
+          #elif licns == "apache2" or licns == "apache":
             <a href="https://opensource.org/licenses/Apache-2.0">Apache 2</a>
-    #     elif licns == "bsd":
+          #elif licns == "bsd":
             <a href="https://opensource.org/licenses/BSD-2-Clause">BSD</a>
-    #     elif licns == "bsd2" or licns == "bsd 2-clause":
+          #elif licns == "bsd2" or licns == "bsd 2-clause":
             <a href="https://opensource.org/licenses/BSD-2-Clause">BSD 2-Clause</a>
-    #     elif licns == "bsd3" or licns == "bsd 3-clause":
+          #elif licns == "bsd3" or licns == "bsd 3-clause":
             <a href="https://opensource.org/licenses/BSD-3-Clause">BSD 3-Clause</a>
-    #     elif licns == "gplv2":
-            <a href="https://opensource.org/licenses/GPL-2.0">GPL 2</a>
-    #     elif licns == "gplv3":
-            <a href="https://opensource.org/licenses/GPL-3.0">GPL 3</a>
-    #     elif licns == "gpl":
+          #elif licns == "gplv2":
+            <a href="https://opensource.org/licenses/GPL-2.0">GPL2</a>
+          #elif licns == "gplv3":
+            <a href="https://opensource.org/licenses/GPL-3.0">GPL3</a>
+          #elif licns == "gpl":
             <a href="https://opensource.org/licenses/GPL-3.0">GPL</a>
-    #     elif licns == "lgplv2":
-            <a href="https://opensource.org/licenses/LGPL-2.0">LGPL 2</a>
-    #     elif licns == "lgplv3":
-            <a href="https://opensource.org/licenses/LGPL-3.0">LGPL 3</a>
-    #     elif licns == "lgpl":
+          #elif licns == "lgplv2":
+            <a href="https://opensource.org/licenses/LGPL-2.0">LGPL2</a>
+          #elif licns == "lgplv3":
+            <a href="https://opensource.org/licenses/LGPL-3.0">LGPL3</a>
+          #elif licns == "lgpl":
             <a href="https://opensource.org/licenses/LGPL-3.0">LGPL</a>
-    #     elif licns == "cc0":
+          #elif licns == "cc0":
             <a href="https://creativecommons.org/publicdomain/zero/1.0">Creative Commons Zero</a>
-    #     elif licns == "cc" or licns == "cc-by-nc-sa" or licns == "cc-by-nc-nd":
+          #elif licns == "cc" or licns == "cc-by-nc-sa" or licns == "cc-by-nc-nd":
             <a href="https://creativecommons.org/licenses">Creative Commons</a>
-    #     elif licns == "wtfpl":
+          #elif licns == "wtfpl":
             <a href="http://www.wtfpl.net">WTFPL</a>
-    #     else:
+          #else:
             ${pkg["license"].str}
-    #     end
+          #end
+        </p>
 
-      </p>
         <p>
-          <a href="/ci/badges/${pname}/nimdevel/output.html">
+          <a href="/ci/badges/${package_name}/nimdevel/output.html">
             <img class="slickbadge" id="versionbadge">
           </a>
-          <a href="/ci/badges/${pname}/nimdevel/output.html">
+          <a href="/ci/badges/${package_name}/nimdevel/output.html">
             <img class="slickbadge" id="statusbadge">
           </a>
-          <a href="/ci/badges/${pname}/nimdevel/doc_build_output.html">
+          <a href="/ci/badges/${package_name}/nimdevel/doc_build_output.html">
             <img class="slickbadge" id="docstatusbadge">
           </a>
         </p>
-
-
         <p class="build-info" id="last_build_time"></p>
         <button class="btn pkg-btn" id="rebuildbtn">Rebuild now</button>
         #if pkg.has_key("web"):
-          <a href="${pkg["web"].str}" ><button class="btn pkg-btn">Project website</button></a> 
+          <a href="${pkg["web"].str}" ><button class="btn pkg-btn">Project website</button></a>
         #end
         #if pkg.has_key("doc"):
-          <a href="${pkg["doc"].str}"><button class="btn pkg-btn"> Docs</button></a>
+          <a href="${pkg["doc"].str}"><button class="btn pkg-btn">Docs</button></a>
         #end if
         #let url = pkg["url"].str
         #if url.startswith("https://github.com/") or url.startswith("http://github.com/") or url.startswith("git"):
-          <a href="/docs/${pname}"><button class="btn pkg-btn">Hosted docs</button></a>
+          <a href="/docs/${package_name}"><button class="btn pkg-btn">Hosted docs</button></a>
         #end if
-    
+      </div>
+      <div class="container box rounded p-3" style="margin-top: 12px;">
         <form action="/searchitem_pkg" method="GET" role="search" class="input-group" id="searchitem">
-          <input id="search-pkg" name="query" type="search"  placeholder="Search Symbols in ${pname}" value="" minlength="1" autofocus required>
-          <input name="pkg_name" type="hidden" value="${pname}">
+          <input id="search-pkg" name="query" type="search"  placeholder="Search symbols in ${package_name}" value="" minlength="1" required>
+          <input name="pkg_name" type="hidden" value="${package_name}">
         </form>
         <div class="search-content">
-            <div id="searchitem_result"></div>
+          <div id="searchitem_result"></div>
         </div>
+      </div>
     </div>
   </div>
 </div>
-      <script>
-          function reload_badges() {
-            $$("#versionbadge").attr("src", "/ci/badges/${pname}/version.svg");
-            $$("#statusbadge").attr("src", "/ci/badges/${pname}/nimdevel/status.svg");
-            $$("#docstatusbadge").attr("src", "/ci/badges/${pname}/nimdevel/docstatus.svg");
-          }
-          function reload_rebuildbtn() {
-            $$.getJSON( "/api/v1/status/${pname}", function(resp) {
-              if (resp.status == "building") {
-                $$("#rebuildbtn").html("<i class='fa fa-spinner fa-spin'></i> Rebuilding");
-              } else {
-                $$("#rebuildbtn").html("Rebuild Now");
-                $$("#last_build_time").html("<strong>Last build time: </strong>" + resp.build_time);
-                reload_badges();
-              }
-            });
-          }
-          $$("#rebuildbtn").click(function() {
-            $$.post("/ci/rebuild/${pname}");
-            $$("#rebuildbtn").html("<i class='fa fa-spinner fa-spin'></i> Rebuilding");
-          });
-          setInterval(reload_rebuildbtn, 5000);
-          reload_rebuildbtn();
-        </script>
-
-      </div>
-    </div>
-
-  
-        <script>
-          $$("#searchitem").submit(function(event) {
-            var data = $$("#searchitem :input").serializeArray();
-            $$("#searchitem_result").load("/searchitem_pkg", data);
-            event.preventDefault();
-          });
-        </script>
-      </div>
-    </div>
-
-  </div>
-</div>
-
-<!-- TODO: Dom: IMO this shouldn't be shown -->
-#if pkg.has_key("github_latest_version_time"):
-<!--<small>Released on ${pkg["github_latest_version_time"].str}</small>-->
-#end if
+<script>
+  function reload_badges() {
+    $$("#versionbadge").attr("src", "/ci/badges/${package_name}/version.svg");
+    $$("#statusbadge").attr("src", "/ci/badges/${package_name}/nimdevel/status.svg");
+    $$("#docstatusbadge").attr("src", "/ci/badges/${package_name}/nimdevel/docstatus.svg");
+  }
+  function reload_rebuildbtn() {
+    $$.getJSON( "/api/v1/status/${package_name}", function(resp) {
+      if (resp.status == "building") {
+        $$("#rebuildbtn").html("<i class='fa fa-spinner fa-spin'></i> Rebuilding");
+      } else {
+        $$("#rebuildbtn").html("Rebuild Now");
+        $$("#last_build_time").html("<strong>Last build time: </strong>" + resp.build_time);
+        reload_badges();
+      }
+    });
+  }
+  $$("#rebuildbtn").click(function() {
+    $$.post("/ci/rebuild/${package_name}");
+    $$("#rebuildbtn").html("<i class='fa fa-spinner fa-spin'></i> Rebuilding");
+  });
+  setInterval(reload_rebuildbtn, 5000);
+  reload_rebuildbtn();
+</script>
+<script>
+  $$("#searchitem").submit(function(event) {
+    var data = $$("#searchitem :input").serializeArray();
+    $$("#searchitem_result").load("/searchitem_pkg", data);
+    event.preventDefault();
+  });
+</script>

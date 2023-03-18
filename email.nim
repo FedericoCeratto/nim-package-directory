@@ -1,7 +1,4 @@
-
-import smtp
-import asyncdispatch
-import strutils
+import std/[asyncdispatch, smtp, strutils]
 
 type
   Config* = object
