@@ -1,4 +1,4 @@
-import std/[algorithm, httpclient, httpcore, json, strutils, sequtils]
+import std/[algorithm, json, strutils, sequtils]
 import jester, morelogging
 
 when defined(systemd):
@@ -52,7 +52,6 @@ proc extract_latest_version*(releases: JsonNode): (string, JsonNode) =
 proc extract_latest_versions_str*(releases: JsonNode): JsonNode =
   ## Extracts latest releases as JSON array
   result = newJArray()
-  var latest_version = "-1.-1.-1"
   var vers: seq[string] = @[]
   for r in releases:
     let version = r["tag_name"].str.strip().strip(trailing = false, chars = {'v'})
