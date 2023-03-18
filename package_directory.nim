@@ -45,7 +45,7 @@ const
   build_timeout_seconds = 60 * 4
   nimble_packages_polling_time_s = 10 * 60
   sdnotify_ping_time_s = 10
-  build_expiry_time = initTimeInterval(minutes = 240)  # TODO: check version/commitish instead
+  build_expiry_time = initTimeInterval(minutes = 240) # TODO: check version/commitish instead
   cache_fn = ".cache.json"
 
   xml_no_cache_headers = {
@@ -77,7 +77,7 @@ type
     doc_build_output: DocBuildOut
     version: string
   RssItem = object
-    title, desc, pubDate: string
+    title, desc, pub_date: string
     url, guid: Uri
   BuildHistoryItem = tuple
     name: string
@@ -548,13 +548,13 @@ proc parse_jsondoc(fname: string, pkg_root_dir: string, pname: string) =
   ## and `jsondoc_symbols_by_pkg`
   # replace ".nim" with ".json"
   let (jsonf_dir, jsonf_basename, _) = splitFile(fname)
-  var json_fn = jsonf_dir / jsonf_basename  & ".json"
+  var json_fn = jsonf_dir / jsonf_basename & ".json"
   var json_data = ""
   try:
     log_debug &"reading {json_fn}"
     json_data = readFile(json_fn)
   except IOError:
-    json_fn = jsonf_dir / "htmldocs" / jsonf_basename  & ".json"
+    json_fn = jsonf_dir / "htmldocs" / jsonf_basename & ".json"
     try:
       log_debug &"reading {json_fn}"
       json_data = readFile(json_fn)
@@ -641,7 +641,8 @@ proc generate_doc_build_stats() =
   let rate = doc_gen_success_count * 100 / install_success_count
   stats.gauge("doc_gen_success_rate", rate)
 
-proc fetch_and_build_pkg_if_needed(pname: string, force_rebuild = false) {.async.} =
+proc fetch_and_build_pkg_if_needed(pname: string,
+    force_rebuild = false) {.async.} =
   ## Fetch package and build docs
   ## Modifies pkgs_doc_files
   try:
@@ -666,13 +667,14 @@ proc fetch_and_build_pkg_if_needed(pname: string, force_rebuild = false) {.async
       pkgs_doc_files[pname] = pm
 
     # Wait for a slot before starting
-    pkgs_waiting_build.incl pname   # lock
+    pkgs_waiting_build.incl pname # lock
     pkgs_doc_files[pname].build_status = BuildStatus.Waiting
     pkgs_doc_files[pname].doc_build_status = BuildStatus.Waiting
     stats.gauge("pkgs_waiting_build_len", pkgs_waiting_build.len)
 
     while pkgs_building.len >= 1:
-      log_debug "waiting for a build slot. Queue size: " & $pkgs_waiting_build.len
+      log_debug "waiting for a build slot. Queue size: " &
+          $pkgs_waiting_build.len
       if pkgs_waiting_build.len < 10:
         log_debug pkgs_waiting_build
       stats.gauge("pkgs_waiting_build_len", pkgs_waiting_build.len)
@@ -696,11 +698,11 @@ proc fetch_and_build_pkg_if_needed(pname: string, force_rebuild = false) {.async
       let elapsed = epochTime() - t0
       stats.gauge("build_time", elapsed)
     except:
-      pkgs_building.excl pname  # unlock
+      pkgs_building.excl pname # unlock
       raise
 
     if pkgs_doc_files[pname].build_status != BuildStatus.OK:
-      pkgs_building.excl pname  # unlock
+      pkgs_building.excl pname # unlock
       log_debug "fetch_and_build_pkg_if_needed failed - skipping doc generation"
       generate_install_stats(false)
 
@@ -723,7 +725,7 @@ proc fetch_and_build_pkg_if_needed(pname: string, force_rebuild = false) {.async
       stats.gauge("doc_build_time", elapsed)
       generate_doc_build_stats()
     finally:
-      pkgs_building.excl pname  # unlock
+      pkgs_building.excl pname # unlock
 
     build_history.append(
       pname,
@@ -833,7 +835,8 @@ router mainRouter:
     var new_pkgs: seq[Pkg] = @[]
     for n in 1..min(cache.pkgs_history.len, 10):
       let package_name: string =
-        if cache.pkgs_history[^n].name.len > 4 and cache.pkgs_history[^n].name[0..3] == "nim-":
+        if cache.pkgs_history[^n].name.len > 4 and cache.pkgs_history[^n].name[
+            0..3] == "nim-":
           cache.pkgs_history[^n].name[4..^1].normalize()
         else:
           cache.pkgs_history[^n].name.normalize()
@@ -845,7 +848,8 @@ router mainRouter:
     # Grab trending packages, as measured by GitHub
     let trending_pkgs = await fetch_trending_packages(request, pkgs)
 
-    resp base_page(request, generate_home_page(top_pkgs, new_pkgs, trending_pkgs))
+    resp base_page(request, generate_home_page(top_pkgs, new_pkgs,
+        trending_pkgs))
 
   get "/search":
     log_req request
@@ -864,7 +868,8 @@ router mainRouter:
     include "templates/build_history.tmpl"
     log_req request
 
-    resp base_page(request, generate_build_history_page(build_history, pkgs_waiting_build, pkgs_building))
+    resp base_page(request, generate_build_history_page(build_history,
+        pkgs_waiting_build, pkgs_building))
 
   get "/pkg/@pkg_name/?":
     log_req request
@@ -1076,7 +1081,8 @@ router mainRouter:
     if doc_path.endswith(".idx"):
       resp readFile(fn)
     else:
-      let head = """<h4>Return to <a href="/"> Nimble Directory</a></h4><h4>Doc files for <a href="/pkg/$#">$#</a></h4>""" % [pname, pname]
+      let head = """<h4>Return to <a href="/"> Nimble Directory</a></h4><h4>Doc files for <a href="/pkg/$#">$#</a></h4>""" %
+          [pname, pname]
       let page = head & fn.readFile()
       resp empty_page(request, page)
 
@@ -1108,7 +1114,7 @@ router mainRouter:
         desc: xmltree.escape(pkg["description"].str),
         url: item_url,
         guid: item_url,
-        pubdate: $item.first_seen_time.utc.format("ddd, dd MMM yyyy hh:mm:ss zz")
+        pub_date: $item.first_seen_time.utc.format("ddd, dd MMM yyyy hh:mm:ss zz")
       )
       rss_items.add i
 
