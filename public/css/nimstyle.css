@@ -15,17 +15,22 @@
   --strong: #bd93f9;
   --hint: #7A7C85;
   --keyword: #ff79c6;
-  --identifier: #f8f8f2;
   --comment: #6272a4;
   --operator: #ff79c6;
   --punctuation: #f8f8f2;
   --other: #f8f8f2;
   --escapeSequence: #bd93f9;
   --number: #bd93f9;
-  --literal: #f1fa8c;
   --program: #9090c0;
   --option: #90b010;
   --raw-data: #8be9fd;
+  --literal: #a4255b;
+  --identifier: #222;
+}
+
+body.dark-theme {
+  --literal: #f1fa8c;
+  --identifier: #f8f8f2;
 }
 
 /* From nim */
