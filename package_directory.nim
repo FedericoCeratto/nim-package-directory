@@ -28,9 +28,9 @@ from std/posix import onSignal, SIGINT, SIGTERM, getpid
 
 #from nimblepkg import getTagsListRemote, getVersionList
 import jester,
-  morelogging,
   sdnotify,
   statsd_client
+import morelogging except log
 
 import github, util, signatures, persist
 
@@ -107,6 +107,7 @@ include "templates/home.tmpl"
 include "templates/pkg.tmpl"
 include "templates/pkg_list.tmpl"
 include "templates/rss.tmpl"
+include "templates/about.tmpl"
 
 
 proc search_packages*(query: string): CountTable[string] =
@@ -231,7 +232,6 @@ settings:
 router mainRouter:
 
   get "/about.html":
-    include "templates/about.tmpl"
     resp base_page(request, generate_about_page())
 
   get "/":
@@ -306,7 +306,7 @@ router mainRouter:
     ## Create or update a package description
     log_req request
     stats.incr("views")
-    const required_fields = @["name", "url", "method", "tags", "description",
+    const required_fields = ["name", "url", "method", "tags", "description",
       "license", "web", "signatures", "authorized_keys"]
     var pkg_data: JsonNode
     try:

@@ -895,7 +895,7 @@ router mainRouter:
         pkg["doc"] = await fetch_github_doc_pages(owner, repo_name)
         await pkg.fetch_github_versions(owner, repo_name)
 
-    resp base_page(request, generate_pkg_page(pkg))
+    resp base_page(request, generate_pkg_page(pkg), pname)
 
   post "/update_package":
     ## Create or update a package description
