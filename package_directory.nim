@@ -155,7 +155,7 @@ proc load_packages*() =
     if not pdata.hasKey("tags"):
       continue
     # Normalize pkg name
-    pdata["name"].str = pdata["name"].str.normalize()
+    pdata["name"].str = pdata["name"].str.toLowerAscii()
     if pdata["name"].str in pkgs:
       log.warn "Duplicate pkg name $#" % pdata["name"].str
       continue
@@ -280,7 +280,7 @@ router mainRouter:
   get "/pkg/@pkg_name/?":
     log_req request
     stats.incr("views")
-    let pname = normalize(@"pkg_name")
+    let pname = toLowerAscii(@"pkg_name")
     if not pkgs.hasKey(pname):
       resp base_page(request, "Package not found")
 
