@@ -1,4 +1,4 @@
-import std/[algorithm, json, strutils, sequtils]
+import std/[algorithm, json, strutils, sequtils, xmltree, uri]
 import jester, morelogging
 
 when defined(systemd):
@@ -116,3 +116,34 @@ proc cleanup_whitespace*(s: string): string =
       inc i
   if result[^1] != '\L':
     result.add '\L'
+
+iterator findNode(html: var XmlNode, tag, attr: string): tuple[el: XmlNode, val: string] {.raises: [].} =
+  for el in html.findAll(tag, caseInsensitive = true):
+    if el.attrs.hasKey attr:
+      let res = el.attrs.getOrDefault(attr, "") # to silent the compiler, ~attr~ exist.
+      yield (el, res)
+
+func rewrite_anchors*(html: var XmlNode, with_prefix: string) =
+  ## to maintain the anchor to local headings
+  for el, href in findNode(html, "a", "href"):
+    if href[0] == '#' and el.attrs.getOrDefault("id", "") == with_prefix & href[1 .. ^1]:
+      el.attrs["id"] = href[1 .. ^1]
+
+func rewrite_relative_url*(html: var XmlNode, base_url_link, base_url_img: string = "") =
+  ## Rewrite all the URLs in a gived readme's HTML by adding a base
+  ## URL if it is missing, so it only affects the relative ones.
+  ## Specifically search in ~a~ and ~img~ elements using specific
+  ## base URLs. Also this maintains the anchor to local headings.
+  let
+    base_uri_a = parseUri base_url_link
+    base_uri_img = parseUri base_url_img
+
+  template rewriteTag(html: var XmlNode, tag, attr: string, base: Uri) =
+    for el, res in findNode(html, tag, attr):
+      if res[0] != '#':
+        el.attrs[attr] = $combine(base, parseUri res) # ~combine~, as used
+                                                      # here, ensures that the
+                                                      # rewriting only occurs
+                                                      # for relative URLs.
+  html.rewriteTag("a", "href", base_uri_a)
+  html.rewriteTag("img", "src", base_uri_img)

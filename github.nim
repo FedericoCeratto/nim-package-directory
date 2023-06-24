@@ -3,7 +3,7 @@
 # GitHub interface
 #
 
-import std/[algorithm, asyncdispatch, httpclient, json, strutils, tables, times]
+import std/[algorithm, asyncdispatch, httpclient, json, strutils, tables, times, htmlparser, xmltree]
 import jester, statsd_client
 import util, persist
 
@@ -56,7 +56,19 @@ proc fetch_github_readme*(owner, repo_name: string): Future[JsonNode] {.async.} 
     ac.headers = github_token_headers
     ac.headers["Accept"] = "application/vnd.github.v3.html" # necessary
     let readme = await ac.getContent(url)
-    return newJString readme
+    try:
+      var html = parseHtml readme
+      html.rewrite_anchors "user-content-"
+      let
+        base_url = "https://github.com/$#/$#/" % [owner, repo_name]
+        base_url_link = base_url & "blob/master/"
+        base_url_img = base_url & "raw/master/"
+      html.rewrite_relative_url(base_url_link, base_url_img)
+      result = newJString $html
+    except CatchableError, Exception:
+      log_debug "failed to rewrite readme's content "
+      log_debug getCurrentExceptionMsg()
+      result = newJString readme
   except:
     log_debug "failed to fetch content ", url
     log_debug getCurrentExceptionMsg()
