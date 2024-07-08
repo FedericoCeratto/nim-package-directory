@@ -4,12 +4,12 @@
 
 # let package_name = pkg["name"].str
 
-<div class="container">
-  <div class="container pt-10">
+<div class="container-fluid container-lg">
+  <div class="pt-10">
     <h3 class="mb-3 fw-bold display-6 pt-4">${package_name}</h3>
-    <p class="tags">
+    <p>
       #for tag in pkg["tags"]:
-      <span class="tag">
+      <span class="badge p-0">
         <a href="/search?query=$tag.str"><button class="btn-tag pkg-btn-tag">
         $tag.str
         </button></a>
@@ -25,16 +25,9 @@
     <small style="font-size: 0.8rem;">Need help? Read <a href="https://github.com/nim-lang/nimble#creating-packages">Nimble</a></small>
   </div>
 
-  <div class="container row pt-4" id="pkg-content">
-    <div class="col-8 box rounded p-3" id="readme-section">
-      #if pkg.has_key("github_readme"):
-        ${pkg["github_readme"].str}
-      #else:
-        <p class="no-readme"><i>The package README is not present or from an unsupported forge.</i></p>
-      #end
-    </div>
-    <div class="col-3" id="meta-section">
-      <div class="container box rounded p-3">
+  <div class="row pt-4 g-3" id="pkg-content">
+    <div class="col-lg-4 order-lg-2" id="meta-section">
+      <div class="box rounded p-3">
         #if pkg.has_key("github_owner"):
           <p class="pkg-author"><strong>Author:</strong>
             <a href="https://github.com/${pkg["github_owner"].str}">${pkg["github_owner"].str}</a>
@@ -94,6 +87,15 @@
         #if pkg.has_key("doc"):
         <p> <a href="${pkg["doc"].str}">Docs</a> </p>
         #end if
+      </div>
+    </div>
+    <div class="col-lg-8" id="readme-section">
+      <div class="box rounded p-3">
+        #if pkg.has_key("github_readme"):
+          ${pkg["github_readme"].str}
+        #else:
+          <p class="no-readme"><i>The package README is not present or from an unsupported forge.</i></p>
+        #end
       </div>
     </div>
   </div>
